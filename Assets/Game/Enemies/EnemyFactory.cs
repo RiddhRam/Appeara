@@ -35,8 +35,6 @@ namespace Armory
                     break;
                 case EnemyKind.Boss:
                     Stats(enemy, hp: 2400f, speed: 1.1f, core: 60f, radius: 2.5f, color: new Color(0.7f, 0.2f, 1f));
-                    Body(go, enemy, PrimitiveType.Sphere, new Vector3(5f, 4f, 5f), 2.5f);
-                    Mats.Shape(PrimitiveType.Sphere, go.transform, new Vector3(0f, 3.2f, 2f), Vector3.one * 1.2f, Mats.Lit(new Color(1f, 0.2f, 0.4f), 2f), name: "Eye");
                     break;
                 default:
                     Stats(enemy, hp: 30f, speed: 3f, core: 5f, radius: 0.5f, color: new Color(0.3f, 0.95f, 0.4f));
@@ -49,6 +47,11 @@ namespace Armory
                 Mats.Shape(PrimitiveType.Sphere, go.transform, new Vector3(0f, enemy.Radius * 2f + 0.3f, enemy.Radius * 0.9f), Vector3.one * Mathf.Max(0.15f, enemy.Radius * 0.35f), Mats.Lit(Color.white, 1.5f), name: "Eye");
 
             enemy.Init(kind, target);
+            if (kind == EnemyKind.Boss)
+            {
+                if (ArmoryGame.Instance != null) go.transform.SetParent(ArmoryGame.Instance.transform, true);
+                go.AddComponent<HiveAvatar>().Initialize(enemy, Resources.Load<HiveAvatarAssets>("HiveAvatarAssets"));
+            }
             return enemy;
         }
 

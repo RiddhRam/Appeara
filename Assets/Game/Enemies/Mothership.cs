@@ -90,6 +90,15 @@ namespace Armory
         /// <summary>Boss-only: instantly resist whatever the player leaned on in the last window.</summary>
         public void BossAdapt(CombatLog window)
         {
+            if (HiveAvatar.Active != null)
+            {
+                if (!HiveAvatar.Active.Ready) return;
+                string primitive = window.TopPrimitive();
+                if (primitive == null) return;
+                HiveAvatar.Active.Adapt(primitive);
+                ShipAI.Instance?.SayMothership("We have grown plating against your " + primitive + ". Invent something else.", "AVATAR RESISTS: " + primitive);
+                return;
+            }
             string top = window.TopPrimitive(Resistances);
             if (top == null) return;
             Apply(new[] { new Counter(CounterKind.Resist, top) });

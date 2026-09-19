@@ -104,6 +104,8 @@ namespace Armory
             {
                 var enemy = hit.collider.GetComponentInParent<Enemy>();
                 if (enemy == null) { end = hit.distance; break; }
+                // A boss has a body and four organ colliders: one beam tick must hit it only once.
+                if (targets.Exists(target => target.Item1 == enemy)) continue;
                 targets.Add((enemy, hit.point));
                 if (targets.Count >= pierce) { end = hit.distance; break; }
             }
@@ -118,7 +120,7 @@ namespace Armory
             foreach (var (enemy, point) in targets)
             {
                 if (enemy == null || !enemy.Alive) continue;
-                enemy.TakeHit(Spec, Spec.Damage * 0.1f);
+                enemy.TakeHit(Spec, Spec.Damage * 0.1f, point);
                 if (Spec.Has(Mods.Slow) && enemy.Alive) enemy.ApplySlow(0.45f, 1f);
                 // Area effects pulse every half second so beams with splash/chain don't melt the frame.
                 if (beamTicks % 5 == 0)

@@ -111,6 +111,13 @@ namespace Armory
                 float angle = spread ? baseAngle + i * (360f / group.Count) + UnityEngine.Random.Range(-10f, 10f)
                                      : baseAngle + UnityEngine.Random.Range(-35f, 35f);
                 var position = Quaternion.Euler(0f, angle, 0f) * Vector3.forward * SpawnRadius + transform.position;
+                if (group.Kind == EnemyKind.Boss && ArmoryGame.Instance != null && ArmoryGame.Instance.Rig != null)
+                {
+                    Vector3 approach = ArmoryGame.Instance.Rig.Head.transform.position - transform.position;
+                    approach.y = 0f;
+                    if (approach.sqrMagnitude < 1f) approach = Vector3.forward;
+                    position = transform.position + approach.normalized * SpawnRadius;
+                }
                 var enemy = EnemyFactory.Spawn(group.Kind, position, transform.position);
                 if (group.Kind == EnemyKind.Boss)
                 {

@@ -28,7 +28,9 @@ Branch `armory-vr`. Commits are local until someone runs `git push origin armory
 11. **Sentry observability** — gateway service holding keys + tracing/logs/AI monitoring/profiling/uptime.
 12. **Polish** — starfield skybox, alien models for enemies, muzzle flash/impact/dissolve, ambience bed, pooling,
     pre-warmed demo cache.
-13. **Boss handoff for Astra** — Hive Avatar hooks, telegraph API, attack list (spec section 7).
+13. **Boss continuation for Claude** — see [CLAUDE_HANDOFF.md](../../CLAUDE_HANDOFF.md). Codex delivered a
+    standalone visual prefab + animation controller and preserved an earlier gameplay prototype. Integrate
+    the art prefab, fix left-claw collider occlusion, then continue the encounter scripting. Not final/polished.
 
 ## Weapon primitives to consider (user, 2026-09-20)
 Feasibility notes against the current controller scheme (right trigger fire, left grip talk):
@@ -45,3 +47,25 @@ Feasibility notes against the current controller scheme (right trigger fire, lef
 - Boss body: teammates' 28 m alien as the Hive Avatar (assumed yes).
 - Which weapon runtime ships: this one or RiddhRam's `weapon-system` branch.
 - Whether to add the gateway service (needed for the Sentry story, also removes keys from builds).
+
+## New demo requests (2026-09-19, Codex continuation)
+- Audio output now works, confirmed by the user. Transcription also works.
+- **Fabrication must have a cost.** Give each wave a finite energy allowance. Price damage, RPM, projectile
+  count, area, and modifiers against the same budget. Show cost and remaining energy before confirming a build.
+  Replacing a weapon returns only part of its cost; repairs/upgrades are cheaper than a full replacement.
+  Keep a free basic rifle so the player cannot get stuck. Refill at the next ARMORY phase; award a small bonus
+  for destroying boss organs. Exact prices/refunds need playtesting. Build on item 6, not a second currency system.
+- **Boss stomp / ground attack.** Telegraph the impact, then send an expanding shockwave across the deck.
+  Provide a pad escape route; do not require jumping with the current controls.
+- **Boss fireballs.** Visible, dodgeable projectiles with a clear windup. Consider shooting them down and later
+  melee deflection; distinguish their color/trail from player shots.
+- **Boss laser.** Charge the mouth/crest, show the sweep path, then fire a sustained sweeping beam. Leave a safe
+  sector and recovery window. Tie the attack to a breakable organ so targeting changes the fight.
+- **Dedicated boss arena (proposal).** Move the finale to an open cargo deck or exterior docking platform.
+  Keep the center clear, place the boss at one end, use low cover and perimeter teleport pads, and put a small
+  core objective off-center. The current station hologram obstructs sightlines. Review arena layout with the
+  team before replacing their map; a separate runtime-built finale can preserve the station for normal waves.
+- **Player health (proposal).** There is currently no player HP/death. All danger reduces core integrity and
+  a core breach restarts the wave. Add player shields/HP for claws, stomp, fireballs and lasers; keep wreckage
+  and swarmers as core threats. Give hits a brief grace period and clear HUD/haptics, without shaking the VR
+  camera. Define player-death/retry behavior and balance before changing this rule.

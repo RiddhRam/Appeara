@@ -178,7 +178,7 @@ namespace Armory
             {
                 // Mines/grenades without splash still need an area pop to feel right.
                 Effects.Explode(Weapon, point, 1.5f, Weapon.Damage, direct);
-                if (direct != null) direct.TakeHit(Weapon, Weapon.Damage);
+                if (direct != null) direct.TakeHit(Weapon, Weapon.Damage, point);
                 if (Weapon.Has(Mods.Chain)) Effects.Chain(Weapon, point, direct, Weapon.ChainCount, Weapon.Damage * 0.6f);
             }
             else Effects.OnHit(Weapon, point, direct != null && direct.Alive ? direct : null, Weapon.Damage);

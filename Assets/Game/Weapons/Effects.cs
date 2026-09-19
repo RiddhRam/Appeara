@@ -14,7 +14,7 @@ namespace Armory
         {
             if (direct != null)
             {
-                direct.TakeHit(weapon, damage);
+                direct.TakeHit(weapon, damage, point);
                 if (weapon.Has(Mods.Slow)) direct.ApplySlow(0.45f, 2.5f);
             }
             if (weapon.Has(Mods.Splash)) Explode(weapon, point, weapon.SplashRadius, damage * 0.8f, direct);

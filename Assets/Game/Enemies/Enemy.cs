@@ -18,6 +18,8 @@ namespace Armory
         public float Radius = 0.6f;
         public Vector3 Target;
         public Color BaseColor;
+        public bool ExternallyDriven;
+        public HiveAvatar Avatar;
 
         private Renderer[] renderers;
         private GameObject shieldBubble;
@@ -34,7 +36,7 @@ namespace Armory
 
         public bool Alive => Health > 0f;
         public bool ShieldUp => ShieldHealth > 0f;
-        public Vector3 Center => transform.position + Vector3.up * (Radius + 0.2f);
+        public Vector3 Center => Avatar != null ? Avatar.AimPoint : ExternallyDriven ? transform.position : transform.position + Vector3.up * (Radius + 0.2f);
 
         private void OnEnable() => All.Add(this);
         private void OnDisable() => All.Remove(this);
@@ -45,6 +47,7 @@ namespace Armory
             Target = target;
             renderers = GetComponentsInChildren<Renderer>();
             zigPhase = Random.value * 10f;
+            if (kind == EnemyKind.Boss || ExternallyDriven) return;
             var ms = Mothership.Instance;
             if (ms != null && ms.Has(CounterKind.Armor)) { MaxHealth *= 1.5f; Health = MaxHealth; }
             if (ms != null && ms.Has(CounterKind.Rush)) Speed *= 1.5f;
@@ -63,7 +66,7 @@ namespace Armory
 
         private void Update()
         {
-            if (!Alive) return;
+            if (!Alive || ExternallyDriven) return;
             float dt = Time.deltaTime;
             var ms = Mothership.Instance;
 
@@ -158,14 +161,15 @@ namespace Armory
         }
 
         /// <summary>All damage flows through here so matchups, adaptations and the combat log stay consistent.</summary>
-        public float TakeHit(ParsedWeapon weapon, float baseDamage)
+        public float TakeHit(ParsedWeapon weapon, float baseDamage, Vector3? hitPoint = null)
         {
-            if (!Alive || weapon == null) return 0f;
+            if (!Alive || weapon == null || baseDamage <= 0f || float.IsNaN(baseDamage) || float.IsInfinity(baseDamage)) return 0f;
             var ms = Mothership.Instance;
             bool shield = ShieldUp;
-            float multiplier = DamageTable.Multiplier(Kind, weapon, shield, ms != null ? ms.Resistances : null);
-            if (ms != null && ms.Has(CounterKind.Reflect) && (weapon.FireMode == FireMode.Beam || weapon.Payload == Payload.Plasma)) multiplier *= 0.25f;
-            float amount = baseDamage * multiplier;
+            float multiplier = Avatar != null || ExternallyDriven ? 1f : DamageTable.Multiplier(Kind, weapon, shield, ms != null ? ms.Resistances : null);
+            if (!ExternallyDriven && ms != null && ms.Has(CounterKind.Reflect) && (weapon.FireMode == FireMode.Beam || weapon.Payload == Payload.Plasma)) multiplier *= 0.25f;
+            float amount = Avatar != null ? Avatar.ResolveDamage(weapon, baseDamage, hitPoint) : baseDamage * multiplier;
+            if (amount <= 0f) return 0f;
 
             if (shield)
             {
@@ -181,7 +185,7 @@ namespace Armory
             else Health -= amount;
 
             ArmoryGame.Instance?.RecordDamage(weapon, amount);
-            Flash();
+            if (!ExternallyDriven) Flash();
             if (multiplier >= 1.4f) WorldText.Popup(Center + Vector3.up * 0.8f, "WEAK!", new Color(1f, 0.85f, 0.2f));
             else if (multiplier <= 0.45f) WorldText.Popup(Center + Vector3.up * 0.8f, shield ? "SHIELDED" : "RESISTED", new Color(0.6f, 0.6f, 0.7f));
 
@@ -191,6 +195,7 @@ namespace Armory
 
         public void ApplySlow(float factor, float seconds)
         {
+            if (ExternallyDriven) return;
             slowFactor = Mathf.Min(slowFactor, factor);
             if (Time.time > slowUntil) slowFactor = factor;
             slowUntil = Time.time + seconds;
@@ -218,13 +223,14 @@ namespace Armory
             Health = 0f;
             enabled = false;
             All.Remove(this);
+            if (Avatar != null) Avatar.Defeated(killed);
             if (killed)
             {
                 Effects.Burst(Center, BaseColor, Radius * 2f);
                 ProceduralSfx.PlayAt(ProceduralSfx.Hit, Center, 0.8f);
             }
             WaveDirector.Instance?.OnEnemyRemoved(this, killed);
-            Destroy(gameObject);
+            Destroy(gameObject, Avatar != null && killed ? 3.5f : 0f);
         }
 
         public static Enemy Nearest(Vector3 point, float maxDistance, Enemy exclude = null, ICollection<Enemy> excludeSet = null)

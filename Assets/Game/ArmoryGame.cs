@@ -36,6 +36,10 @@ namespace Armory
         {
             Instance = this;
             DisableOtherCameras();
+            // This scene prop is now spawned as the final encounter. Only hide it in the live session.
+            foreach (var root in gameObject.scene.GetRootGameObjects())
+                if (root.name == "Alien Animal_Fbx_7.4" && root.GetComponentInChildren<SkinnedMeshRenderer>() != null)
+                    root.SetActive(false);
             if (BuildFloor) BuildArenaFloor();
             // The imported station has no colliders; grenades and mines need something to land on.
             var floorCollider = new GameObject("Arena Floor Collider").AddComponent<BoxCollider>();
