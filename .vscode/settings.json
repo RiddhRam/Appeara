@@ -67,5 +67,5 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "Ink-Bound.slnx"
+    "dotnet.defaultSolution": "Ink Bound.slnx"
 }
