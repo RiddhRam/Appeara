@@ -30,6 +30,8 @@ namespace Armory
         public bool RecenterPressed { get; private set; }
         /// <summary>Right A button (or Enter on desktop): starts the wave from the armory phase.</summary>
         public bool ReadyPressed { get; private set; }
+        /// <summary>Right Y/B-side button (or M on desktop): opens the drydock menu.</summary>
+        public bool MenuPressed { get; private set; }
         public Vector2 LeftStick { get; private set; }
         public Vector2 RightStick { get; private set; }
         public int CannedPromptPressed { get; private set; } = -1;
@@ -48,7 +50,8 @@ namespace Armory
         private bool recenterHeld;
         private bool dropHeld;
         private bool readyHeld;
-        private InputAction trigger, grip, drop, recenter, ready, leftStick, rightStick;
+        private bool menuHeld;
+        private InputAction trigger, grip, drop, recenter, ready, menu, leftStick, rightStick;
 
         private static readonly InputFeatureUsage<Vector3> PointerPosition = new InputFeatureUsage<Vector3>("PointerPosition");
         private static readonly InputFeatureUsage<Quaternion> PointerRotation = new InputFeatureUsage<Quaternion>("PointerRotation");
@@ -80,6 +83,7 @@ namespace Armory
             drop = Button("<XRController>{RightHand}/secondaryButton");
             recenter = Button("<XRController>{LeftHand}/primaryButton");
             ready = Button("<XRController>{RightHand}/primaryButton");
+            menu = Button("<XRController>{LeftHand}/secondaryButton");
             leftStick = Stick("<XRController>{LeftHand}/thumbstick", "<XRController>{LeftHand}/primary2DAxis");
             rightStick = Stick("<XRController>{RightHand}/thumbstick", "<XRController>{RightHand}/primary2DAxis");
         }
@@ -121,7 +125,7 @@ namespace Armory
 
         private void OnDestroy()
         {
-            foreach (var action in new[] { trigger, grip, drop, recenter, ready, leftStick, rightStick }) action?.Dispose();
+            foreach (var action in new[] { trigger, grip, drop, recenter, ready, menu, leftStick, rightStick }) action?.Dispose();
         }
 
         private IEnumerator StartXR()
@@ -194,7 +198,7 @@ namespace Armory
             DesktopTeleportStep = 0;
             TypePressed = false;
 
-            bool readyNow = false;
+            bool readyNow = false, menuNow = false;
             bool dropNow, recenterNow;
             if (IsXR)
             {
@@ -205,6 +209,7 @@ namespace Armory
                 LeftStick = leftStick.ReadValue<Vector2>();
                 RightStick = rightStick.ReadValue<Vector2>();
                 readyNow = ready.IsPressed();
+                menuNow = menu.IsPressed();
             }
             else
             {
@@ -212,7 +217,12 @@ namespace Armory
             }
 
             if (!IsXR && Keyboard.current != null && !TextEntryActive)
+            {
                 readyNow = Keyboard.current.enterKey.isPressed || Keyboard.current.numpadEnterKey.isPressed;
+                menuNow = Keyboard.current.mKey.isPressed;
+            }
+            MenuPressed = menuNow && !menuHeld;
+            menuHeld = menuNow;
             ReadyPressed = readyNow && !readyHeld;
             readyHeld = readyNow;
             DropPressed = dropNow && !dropHeld;

@@ -82,6 +82,10 @@ namespace Armory
             hud = new GameObject("HUD").AddComponent<Hud>();
             hud.transform.SetParent(transform, false);
             hud.Rig = Rig;
+
+            var deck = new GameObject("Mission Deck").AddComponent<MissionDeck>();
+            deck.transform.SetParent(transform, false);
+            deck.Rig = Rig;
         }
 
         private void DisableOtherCameras()

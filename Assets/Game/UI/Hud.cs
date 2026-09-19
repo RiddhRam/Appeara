@@ -149,6 +149,10 @@ namespace Armory
         private void LateUpdate()
         {
             if (Rig == null || follow == null) return;
+            // The drydock sits closer than the comms card; showing both makes the text collide.
+            bool deckOpen = MissionDeck.Open;
+            if (follow.gameObject.activeSelf == deckOpen) follow.gameObject.SetActive(!deckOpen);
+            if (deckOpen) return;
             var head = Rig.Head.transform;
             Vector3 forward = head.forward;
             forward.y = 0f;
