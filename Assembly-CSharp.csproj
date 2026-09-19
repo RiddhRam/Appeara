@@ -49,12 +49,18 @@
     <Analyzer Include="/Applications/Unity/Hub/Editor/6000.3.13f1/Unity.app/Contents/Resources/BuildPipeline/Unity.SourceGenerators/Unity.UIToolkit.SourceGenerator.dll" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets/Scripts/Weapons/WeaponVisuals.cs" />
     <Compile Include="Assets/Scripts/EnemyPerimeterSpawner.cs" />
     <Compile Include="Assets/Scripts/Weapons/WeaponRuntime.cs" />
     <Compile Include="Assets/Scripts/Weapons/WeaponComposer.cs" />
     <Compile Include="Assets/Scripts/Weapons/WeaponRecipe.cs" />
+    <Compile Include="Assets/Scripts/Weapons/WeaponDescription.cs" />
+    <Compile Include="Assets/Scripts/Weapons/WeaponTarget.cs" />
     <Compile Include="Assets/TutorialInfo/Scripts/Readme.cs" />
+    <Compile Include="Assets/Scripts/Weapons/WeaponDrawing.cs" />
+    <Compile Include="Assets/Scripts/Weapons/WeaponPlayground.cs" />
     <Compile Include="Assets/Scripts/Weapons/WeaponRecipeExamples.cs" />
+    <Compile Include="Assets/Scripts/Weapons/WeaponJson.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets/Sci-Fi Styled Modular Pack/Readme.txt" />

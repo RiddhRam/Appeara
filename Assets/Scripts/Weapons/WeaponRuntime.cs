@@ -2,224 +2,159 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>Runtime weapon assembled from a <see cref="WeaponRecipe"/>.</summary>
 public sealed class WeaponRuntime : MonoBehaviour
 {
     public WeaponRecipe Recipe { get; private set; }
+    public Transform Owner { get; set; }
+    public Sprite Artwork { get; private set; }
     public event Action<WeaponHitContext> Hit;
-
     private float nextUseTime;
-
+    public void SetArtwork(string png) { var next = WeaponDrawing.DecodeSprite(png); ReleaseArtwork(); Artwork = next; }
+    private void ReleaseArtwork() { if (Artwork != null) { Destroy(Artwork.texture); Destroy(Artwork); } }
+    private void OnDestroy() { ReleaseArtwork(); }
     public void Initialize(WeaponRecipe recipe)
     {
-        Recipe = recipe ?? throw new ArgumentNullException(nameof(recipe));
-        Recipe.Normalize();
+        if (recipe == null) throw new ArgumentNullException(nameof(recipe));
+        if (!WeaponRecipe.TryParse(WeaponJson.ToJson(recipe),out var copy,out var errors)) throw new ArgumentException(string.Join("\n",errors));
+        Recipe = copy;
     }
-
-    /// <summary>Uses this weapon from the supplied world-space origin and direction.</summary>
-    public bool TryUse(Vector3 origin, Vector3 direction)
+    // Input repeats this call while held; cooldown limits every behavior's use rate.
+    public bool TryUse(Vector3 origin,Vector3 direction)
     {
-        if (Recipe == null || Time.time < nextUseTime)
-            return false;
-
-        direction = direction.sqrMagnitude > 0.0001f ? direction.normalized : transform.forward;
-        nextUseTime = Time.time + Recipe.delivery.cooldown;
-        var shots = Mathf.Max(1, Mathf.RoundToInt(GetModifierValue(WeaponPrimitiveIds.ModifierMultishot, 1f)));
-        for (var shot = 0; shot < shots; shot++)
-            Deliver(origin, SpreadDirection(direction, shot, shots));
+        if (Recipe == null || Time.time < nextUseTime) return false;
+        nextUseTime = Time.time+Recipe.cooldown;
+        Execute(Recipe.behaviors,origin,direction.sqrMagnitude > 0 ? direction.normalized : transform.forward,null);
         return true;
     }
-
-    private void Deliver(Vector3 origin, Vector3 direction)
+    internal bool IsIgnored(Collider c) => c == null || c.transform.IsChildOf(transform) || (Owner != null && c.transform.IsChildOf(Owner));
+    internal bool Ray(Vector3 origin,Vector3 direction,float range,out RaycastHit selected)
     {
-        var delivery = Recipe.delivery;
-        switch (delivery.primitive)
+        selected = default; float nearest = float.MaxValue;
+        foreach (var h in Physics.RaycastAll(origin,direction,range,~0,QueryTriggerInteraction.Ignore))
+            if (!IsIgnored(h.collider) && h.distance < nearest) { nearest = h.distance; selected = h; }
+        return nearest < float.MaxValue;
+    }
+    internal void Execute(WeaponBehavior[] behaviors,Vector3 point,Vector3 direction,Collider target)
+    {
+        if (behaviors == null) return;
+        foreach (var b in behaviors)
         {
-            case WeaponPrimitiveIds.DeliveryMeleeArc:
-                DeliverMeleeArc(origin, direction);
-                break;
-            case WeaponPrimitiveIds.DeliveryAreaPulse:
-                DeliverArea(origin);
-                break;
-            case WeaponPrimitiveIds.DeliveryProjectile:
-            case WeaponPrimitiveIds.DeliveryThrownProjectile:
-                RuntimeProjectile.Create(this, origin, direction, delivery);
-                break;
-            case WeaponPrimitiveIds.DeliveryHitscan:
-            case WeaponPrimitiveIds.DeliveryBeam:
-                if (Physics.Raycast(origin, direction, out var hit, delivery.range, delivery.hitLayers, QueryTriggerInteraction.Ignore))
-                    ReportHit(hit.collider, hit.point, hit.normal, direction);
-                break;
+            switch (b.type)
+            {
+                case "projectile": WeaponMovingObject.Create(this,b,point,direction,false); break;
+                case "spawn_object":
+                    var placement = target != null ? point : Ray(point,direction,Mathf.Min(b.range,8),out var ground) ? ground.point : point+direction*2;
+                    WeaponMovingObject.Create(this,b,placement,direction,true); break;
+                case "beam":
+                    var end = point+direction*b.range;
+                    if (Ray(point,direction,b.range,out var hit)) { end = hit.point; Impact(b,hit.collider,end,direction); }
+                    WeaponVisuals.Line(point,end,Recipe.presentation); break;
+                case "explosion": Area(b,point,direction,false); break;
+                case "melee": Area(b,point,direction,true); break;
+                case "apply_force":
+                case "apply_status":
+                    var receiver = target;
+                    if (receiver == null && Ray(point,direction,b.range,out var direct)) receiver = direct.collider;
+                    if (receiver == null || IsIgnored(receiver)) break;
+                    if (b.type == "apply_force")
+                    {
+                        var body = receiver.attachedRigidbody;
+                        if (body != null && !body.isKinematic) body.AddForce(direction*b.force,ForceMode.Impulse);
+                    }
+                    else receiver.GetComponentInParent<WeaponTarget>()?.ApplyStatus(b.status,b.duration,b.damage);
+                    break;
+            }
         }
     }
-
-    private void DeliverMeleeArc(Vector3 origin, Vector3 direction)
+    private void Area(WeaponBehavior b,Vector3 point,Vector3 direction,bool melee)
     {
-        var delivery = Recipe.delivery;
-        foreach (var collider in Physics.OverlapSphere(origin, delivery.range, delivery.hitLayers, QueryTriggerInteraction.Ignore))
+        var seen = new HashSet<int>();
+        foreach (var c in Physics.OverlapSphere(point,melee ? b.range : b.radius,~0,QueryTriggerInteraction.Ignore))
         {
-            var toTarget = collider.ClosestPoint(origin) - origin;
-            if (toTarget.sqrMagnitude < 0.0001f || Vector3.Angle(direction, toTarget) <= delivery.arcDegrees * 0.5f)
-                ReportHit(collider, collider.ClosestPoint(origin), -direction, direction);
+            if (IsIgnored(c)) continue;
+            var to = c.ClosestPoint(point)-point;
+            if (melee && to.sqrMagnitude > 0.0001f && Vector3.Angle(direction,to) > b.arcDegrees/2) continue;
+            var receiver = c.GetComponentInParent<WeaponTarget>();
+            var key = receiver != null ? receiver.GetInstanceID() : c.attachedRigidbody != null ? c.attachedRigidbody.GetInstanceID() : c.GetInstanceID();
+            if (!seen.Add(key)) continue;
+            Impact(b,c,c.ClosestPoint(point),melee ? direction : (c.bounds.center-point).normalized);
+        }
+        if (!melee)
+        {
+            // Short radial burst, no collider or long-lived effect objects.
+            for (int i=0;i<12;i++) { var d = Quaternion.Euler(0,i*30,0)*Vector3.forward; WeaponVisuals.Line(point,point+d*b.radius,Recipe.presentation); }
         }
     }
-
-    private void DeliverArea(Vector3 origin)
+    internal void Impact(WeaponBehavior b,Collider c,Vector3 point,Vector3 direction)
     {
-        var delivery = Recipe.delivery;
-        foreach (var collider in Physics.OverlapSphere(origin, delivery.radius, delivery.hitLayers, QueryTriggerInteraction.Ignore))
-            ReportHit(collider, collider.ClosestPoint(origin), Vector3.up, Vector3.zero);
-    }
-
-    internal void ReportHit(Collider target, Vector3 point, Vector3 normal, Vector3 direction)
-    {
-        if (target == null)
-            return;
-
-        Hit?.Invoke(new WeaponHitContext(this, target, point, normal, direction, Recipe.payloads));
-    }
-
-    internal void Explode(Vector3 origin, float radius, Collider directHit)
-    {
-        foreach (var collider in Physics.OverlapSphere(origin, radius, Recipe.delivery.hitLayers, QueryTriggerInteraction.Ignore))
-        {
-            if (collider != directHit)
-                ReportHit(collider, collider.ClosestPoint(origin), Vector3.up, Vector3.zero);
-        }
-    }
-
-    internal float GetModifierValue(string primitive, float fallback)
-    {
-        foreach (var modifier in Recipe.modifiers)
-            if (modifier.primitive == primitive)
-                return modifier.value;
-        return fallback;
-    }
-
-    private static Vector3 SpreadDirection(Vector3 direction, int index, int count)
-    {
-        if (count == 1) return direction;
-        var angle = Mathf.Lerp(-6f, 6f, index / (float)(count - 1));
-        return Quaternion.AngleAxis(angle, Vector3.up) * direction;
+        if (IsIgnored(c)) return;
+        c.GetComponentInParent<WeaponTarget>()?.Damage(b.damage);
+        Hit?.Invoke(new WeaponHitContext(this,c,point,direction,b));
+        Execute(b.onHit,point,direction,c);
     }
 }
 
-/// <summary>Gameplay can consume this event to apply health, status, VFX, and audio.</summary>
 public readonly struct WeaponHitContext
 {
     public readonly WeaponRuntime weapon;
     public readonly Collider target;
-    public readonly Vector3 point;
-    public readonly Vector3 normal;
-    public readonly Vector3 direction;
-    public readonly WeaponPayload[] payloads;
-
-    public WeaponHitContext(WeaponRuntime weapon, Collider target, Vector3 point, Vector3 normal, Vector3 direction, WeaponPayload[] payloads)
-    {
-        this.weapon = weapon;
-        this.target = target;
-        this.point = point;
-        this.normal = normal;
-        this.direction = direction;
-        this.payloads = payloads;
-    }
+    public readonly Vector3 point, direction;
+    public readonly WeaponBehavior behavior;
+    public WeaponHitContext(WeaponRuntime weapon,Collider target,Vector3 point,Vector3 direction,WeaponBehavior behavior)
+    { this.weapon=weapon; this.target=target; this.point=point; this.direction=direction; this.behavior=behavior; }
 }
 
-internal sealed class RuntimeProjectile : MonoBehaviour
+public sealed class WeaponMovingObject : MonoBehaviour
 {
     private WeaponRuntime weapon;
-    private WeaponDelivery delivery;
-    private Vector3 velocity;
-    private float expiresAt;
-    private int remainingPierces;
-    private int remainingBounces;
-    private float homingStrength;
-    private readonly HashSet<Collider> hitTargets = new HashSet<Collider>();
-
-    public static void Create(WeaponRuntime weapon, Vector3 origin, Vector3 direction, WeaponDelivery delivery)
+    private WeaponBehavior behavior;
+    private Vector3 direction;
+    private float expires, travelled, armedAt;
+    private bool mine;
+    private static int count;
+    private Transform visual;
+    public static void Create(WeaponRuntime weapon,WeaponBehavior b,Vector3 point,Vector3 direction,bool mine)
     {
-        var projectileObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        projectileObject.name = weapon.Recipe.displayName + " Projectile";
-        projectileObject.transform.SetPositionAndRotation(origin, Quaternion.LookRotation(direction));
-        projectileObject.transform.localScale = Vector3.one * Mathf.Max(0.05f, delivery.radius * 2f);
-        var projectile = projectileObject.AddComponent<RuntimeProjectile>();
-        projectile.weapon = weapon;
-        projectile.delivery = delivery;
-        projectile.velocity = direction * delivery.speed;
-        projectile.expiresAt = Time.time + delivery.lifetime;
-        projectile.remainingPierces = Mathf.Max(0, Mathf.FloorToInt(weapon.GetModifierValue(WeaponPrimitiveIds.ModifierPierce, 0f)));
-        projectile.remainingBounces = Mathf.Max(0, Mathf.FloorToInt(weapon.GetModifierValue(WeaponPrimitiveIds.ModifierBounce, 0f)));
-        projectile.homingStrength = Mathf.Max(0f, weapon.GetModifierValue(WeaponPrimitiveIds.ModifierHoming, 0f));
+        if (count >= 256) return;
+        var go = new GameObject(mine ? "Spawned mine" : "Weapon projectile");
+        go.transform.SetPositionAndRotation(point,Quaternion.LookRotation(direction));
+        var moving = go.AddComponent<WeaponMovingObject>(); count++;
+        moving.weapon=weapon; moving.behavior=b; moving.direction=direction; moving.mine=mine;
+        moving.expires=Time.time+b.lifetime; moving.armedAt=Time.time+0.4f;
+        if (weapon.Artwork != null && (mine || weapon.Recipe.presentation.useDrawingAsProjectile))
+        {
+            var facing = new GameObject("Paper facing").transform; facing.SetParent(go.transform,false);
+            facing.gameObject.AddComponent<DrawingBillboard>();
+            moving.visual=WeaponVisuals.CreateDrawing(facing,weapon.Artwork,weapon.Recipe.presentation.scale*0.5f);
+        }
+        else moving.visual=WeaponVisuals.Create(go.transform,weapon.Recipe.presentation,mine ? "grenade" : "bolt");
+        if (!mine) WeaponVisuals.Trail(go,weapon.Recipe.presentation);
     }
-
     private void Update()
     {
-        SteerTowardsNearestTarget();
-        var distance = velocity.magnitude * Time.deltaTime;
-        if (TryGetNewHit(distance, out var hit))
+        if (weapon == null || Time.time >= expires || travelled >= behavior.range) { Destroy(gameObject); return; }
+        if (mine)
         {
-            transform.position = hit.point;
-            weapon.ReportHit(hit.collider, hit.point, hit.normal, velocity.normalized);
-            hitTargets.Add(hit.collider);
-            var explosionRadius = weapon.GetModifierValue(WeaponPrimitiveIds.ModifierExplodeOnImpact, 0f);
-            if (explosionRadius > 0f)
-                weapon.Explode(hit.point, explosionRadius, hit.collider);
-
-            if (remainingPierces > 0)
+            if (Time.time < armedAt) return;
+            foreach (var c in Physics.OverlapSphere(transform.position,behavior.radius,~0,QueryTriggerInteraction.Ignore))
             {
-                remainingPierces--;
-                transform.position += velocity.normalized * 0.02f;
-                return;
+                if (weapon.IsIgnored(c) || c.GetComponentInParent<WeaponTarget>() == null) continue;
+                // Fire once, using the mine location as the event origin.
+                weapon.Execute(behavior.onHit,transform.position,direction,c);
+                Destroy(gameObject); return;
             }
-
-            if (remainingBounces > 0)
-            {
-                remainingBounces--;
-                velocity = Vector3.Reflect(velocity, hit.normal);
-                transform.position += hit.normal * 0.02f;
-                return;
-            }
-
-            Destroy(gameObject);
             return;
         }
-
-        transform.position += velocity * Time.deltaTime;
-        if (Time.time >= expiresAt) Destroy(gameObject);
+        var distance=Mathf.Min(behavior.speed*Time.deltaTime,behavior.range-travelled);
+        Collider selected=null; Vector3 point=default; float nearest=float.MaxValue;
+        // Include initial overlaps as sphere casts alone skip them.
+        foreach (var c in Physics.OverlapSphere(transform.position,behavior.radius,~0,QueryTriggerInteraction.Ignore))
+            if (!weapon.IsIgnored(c)) { selected=c; point=c.ClosestPoint(transform.position); nearest=0; break; }
+        foreach (var h in Physics.SphereCastAll(transform.position,behavior.radius,direction,distance,~0,QueryTriggerInteraction.Ignore))
+            if (!weapon.IsIgnored(h.collider) && h.distance<nearest) { selected=h.collider; point=h.point; nearest=h.distance; }
+        if (selected != null) { weapon.Impact(behavior,selected,point,direction); Destroy(gameObject); return; }
+        transform.position+=direction*distance; travelled+=distance;
+        visual.Rotate(Vector3.forward,weapon.Recipe.presentation.spin*Time.deltaTime,Space.Self);
     }
-
-    private bool TryGetNewHit(float distance, out RaycastHit selectedHit)
-    {
-        selectedHit = default;
-        var hits = Physics.SphereCastAll(transform.position, delivery.radius, velocity.normalized, distance, delivery.hitLayers, QueryTriggerInteraction.Ignore);
-        var nearestDistance = float.MaxValue;
-        foreach (var hit in hits)
-        {
-            if (hitTargets.Contains(hit.collider) || hit.distance >= nearestDistance)
-                continue;
-            selectedHit = hit;
-            nearestDistance = hit.distance;
-        }
-        return nearestDistance < float.MaxValue;
-    }
-
-    private void SteerTowardsNearestTarget()
-    {
-        if (homingStrength <= 0f || velocity.sqrMagnitude < 0.0001f)
-            return;
-
-        Collider closest = null;
-        var closestDistance = float.MaxValue;
-        foreach (var candidate in Physics.OverlapSphere(transform.position, delivery.range, delivery.hitLayers, QueryTriggerInteraction.Ignore))
-        {
-            if (hitTargets.Contains(candidate)) continue;
-            var sqrDistance = (candidate.ClosestPoint(transform.position) - transform.position).sqrMagnitude;
-            if (sqrDistance < closestDistance) { closest = candidate; closestDistance = sqrDistance; }
-        }
-        if (closest == null) return;
-
-        var desired = (closest.ClosestPoint(transform.position) - transform.position).normalized * velocity.magnitude;
-        velocity = Vector3.RotateTowards(velocity, desired, homingStrength * Time.deltaTime, 0f);
-        transform.rotation = Quaternion.LookRotation(velocity);
-    }
+    private void OnDestroy() { count=Mathf.Max(0,count-1); }
 }

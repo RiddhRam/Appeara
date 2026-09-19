@@ -1,48 +1,59 @@
-# Runtime Weapon Primitives
+# Weapon behaviors (recipe version 2)
 
-`WeaponComposer.TryCompose(json, parent, out weapon, out errors)` builds a usable
-weapon from JSON during play. The JSON is deliberately constrained so an LLM can
-author it without inventing a prefab, component, or C# type.
+Exactly seven composable behavior IDs:
 
-## Recipe schema
+| ID | Behavior |
+|---|---|
+| projectile | Travels and applies damage / onHit children at collision. |
+| beam | One instantaneous ray pulse per activation. |
+| explosion | Radial damage / onHit children, deduplicated per receiver. |
+| spawn_object | Places a proximity mine; arms after 0.4s, fires onHit once, expires after lifetime. |
+| apply_force | Rigidbody impulse on the impacted or aimed target. |
+| apply_status | Burning (red), freezing (blue), stunned (purple). Tint restores on expiry. |
+| melee | One forward arc attack per activation. |
+
+All weapons repeat while held, respecting cooldown; release stops repetition.
+Older version 2 saves are normalized to this behavior. No modifiers, homing,
+bouncing, piercing or multishot. Damage is a parameter, not an eighth behavior.
+Compose primitives using onHit, for example projectile → explosion → apply_force.
+Force/status nodes are leaves. Up to 16 nodes and three nested levels are allowed.
+Status freezes/slows expose MovementMultiplier for enemy movement code to consume;
+burning applies damage over time. Stun tint takes precedence over freeze, then burn.
 
 ```json
 {
-  "id": "stable_machine_name",
-  "displayName": "Player-facing name",
-  "trigger": "press",
-  "delivery": {
-    "primitive": "hitscan",
-    "range": 30,
-    "cooldown": 0.2,
-    "arcDegrees": 100,
-    "radius": 0.5,
-    "speed": 25,
-    "lifetime": 3
+  "version": 2,
+  "displayName": "Impact cannon",
+  "cooldown": 0.35,
+  "presentation": {
+    "asset": "bolt", "color": "#68E8FF", "scale": 1,
+    "useDrawingAsProjectile": false, "drawingForwardDegrees": 0
   },
-  "payloads": [{ "primitive": "damage", "magnitude": 15, "duration": 0 }],
-  "modifiers": [{ "primitive": "pierce", "value": 2 }]
+  "behaviors": [{
+    "type": "projectile", "damage": 0,
+    "onHit": [{
+      "type": "explosion", "radius": 3, "damage": 25,
+      "onHit": [{"type": "apply_force", "force": 8}]
+    }]
+  }]
 }
 ```
 
-All numeric fields are optional unless their primitive needs them; the C# defaults
-apply when omitted. `hitLayers` may also be supplied as a Unity layer-mask integer.
+Open Tools → Weapons → Open Playground, then Play. Draw, interpret, review, equip.
+Specify which way the barrel/blade points on paper (Right/Up/Left/Down). Its direction
+is rotated toward the camera's aim in world space; the weapon is no longer a flat
+screen overlay. Guns fire separate bullets by default. Enable drawn ammunition only
+for objects you want to launch, such as arrows. Spawned mines use the drawing.
+The same simple physics collider sizes are independent of the artwork.
 
-## Allowed primitive IDs
+WASD moves, mouse aims, click attacks, Tab draws, R resets targets. Touch press also
+uses the same repeat-while-held behavior, but complete mobile movement/aim UI is not provided.
+Cooldown limits the firing rate. Release stops repeating; there is no queued burst.
 
-| Slot | IDs | Runtime behavior |
-| --- | --- | --- |
-| `trigger` | `press`, `hold` | Tells the input layer when to call `TryUse`. |
-| delivery | `melee_arc`, `hitscan`, `projectile`, `thrown_projectile`, `beam`, `area_pulse` | Determines target acquisition and travel. |
-| payload | `damage`, `knockback`, `ignite`, `slow`, `stun`, `heal` | Passed to the gameplay damage/status listener in `WeaponHitContext`. |
-| modifier | `multishot`, `pierce`, `bounce`, `explode_on_impact`, `homing` | Alters a delivery. The modifier value is shot count, count, count, explosion radius, or turn speed respectively. |
+The image backend returns version 2 recipes using the same seven behavior IDs.
+See Services/drawing/README.md for provider setup. Old saved recipes are not executed:
+Load last drawing preserves their PNG and asks you to choose a new interpretation.
 
-## Integration
-
-After composing, call `weapon.TryUse(origin, direction)` from the player/AI input
-layer. Subscribe to `weapon.Hit` to send its payloads into the eventual health,
-status, VFX, and audio systems. This separation is intentional: the primitive
-system can author and launch any weapon before those game-specific systems exist.
-
-`WeaponRecipeExamples` can be put on a scene object to try its JSON on left mouse
-click. It includes a laser sword example and can be replaced with any valid recipe.
+Verification: Tools → Weapons → Run Recipe Checks; in Play mode, Run Drawing Checks
+and Run Play Mode Combat Checks. No batchmode. Mines/projectiles are capped at 256
+combined and are removed when their owning weapon is replaced.
