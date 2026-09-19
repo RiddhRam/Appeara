@@ -26,6 +26,10 @@ namespace Armory
         public bool DebugAutoFire { get; set; }
         private Transform debugAim;
         public bool Listening => recording;
+        public string MicDevice => micDevice;
+        public AudioClip MicClip => micClip;
+        public AudioSource ShipVoice => shipVoice;
+        public AudioSource MothershipVoice => motherVoice;
         public string Status { get; private set; } = "";
         public string LastTranscript { get; private set; } = "";
         public readonly List<(string speaker, string text)> Subtitles = new List<(string, string)>();
@@ -167,7 +171,8 @@ namespace Armory
             _ = TranscribeAndFabricate(WavPcm.EncodeWav(samples, 1, MicRate));
         }
 
-        private async Awaitable TranscribeAndFabricate(byte[] wav)
+        /// <summary>WAV bytes (any sample rate) → transcript → weapon. Mic push-to-talk ends here.</summary>
+        public async Awaitable TranscribeAndFabricate(byte[] wav)
         {
             if (OpenAI == null) { Status = "Offline: press T to type or 1-5 for presets."; return; }
             Busy = true;
