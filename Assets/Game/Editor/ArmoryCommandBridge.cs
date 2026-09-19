@@ -59,6 +59,7 @@ namespace Armory.Editor
                 else if (command == "autofire") { ShipAI.Instance.DebugAutoFire = !ShipAI.Instance.DebugAutoFire; Write("autofire " + ShipAI.Instance.DebugAutoFire); }
                 else if (command == "skip") { WaveDirector.Instance.SkipWave(); Write("skipped"); }
                 else if (command == "state") Write(GameState());
+                else if (command == "miclevels") { ShipAI.Instance.ProbeMics(); Write("probing mics for ~2s per device; see console"); }
                 else if (command == "reset") { Mothership.Instance.Clear(); Projectile.SurfaceHits.Clear(); Projectile.EnemyHits = 0; WaveDirector.Instance.RestartWave(0, 1f); Write("reset"); }
                 else Write("unknown command: " + command);
             }
@@ -133,6 +134,13 @@ namespace Armory.Editor
             UnityEngine.Object.DestroyImmediate(texture);
             target.Release();
             Write("shot " + camera.name);
+        }
+
+        [MenuItem("Armory/Mic Levels (Play Mode)")]
+        public static void MicLevels()
+        {
+            if (!EditorApplication.isPlaying || ShipAI.Instance == null) { Debug.LogWarning("Enter Play Mode first."); return; }
+            ShipAI.Instance.ProbeMics();
         }
 
         [MenuItem("Armory/Run Tests")]

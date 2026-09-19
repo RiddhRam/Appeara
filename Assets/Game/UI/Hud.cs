@@ -215,11 +215,12 @@ namespace Armory
             if (ai == null) return;
 
             bool fabricating = ai.Busy;
-            commsBar.SetFloat("_Fill", fabricating ? Mathf.Repeat(Time.time * 0.45f, 1f) : 0f);
-            commsBar.SetFloat("_Segments", fabricating ? 16f : 16f);
-            commsBar.SetColor("_On", fabricating ? UiKit.Amber : UiKit.Cyan);
-            commsBar.SetColor("_Off", fabricating ? new Color(0.3f, 0.25f, 0.15f, 0.3f) : new Color(0f, 0f, 0f, 0f));
-            if (ai.Listening) SetStatus("● Listening", UiKit.Go);
+            // While talking the bar is a live input meter: if it never moves, the mic is not reaching Unity.
+            float fill = ai.Listening ? Mathf.Clamp01(ai.MicLevel * 6f) : fabricating ? Mathf.Repeat(Time.time * 0.45f, 1f) : 0f;
+            commsBar.SetFloat("_Fill", fill);
+            commsBar.SetColor("_On", ai.Listening ? (ai.MicLevel > 0.01f ? UiKit.Go : UiKit.Alien) : UiKit.Amber);
+            commsBar.SetColor("_Off", ai.Listening || fabricating ? new Color(0.25f, 0.3f, 0.35f, 0.3f) : new Color(0f, 0f, 0f, 0f));
+            if (ai.Listening) SetStatus(ai.MicLevel > 0.01f ? "● Listening" : "● No input", ai.MicLevel > 0.01f ? UiKit.Go : UiKit.Alien);
             else if (fabricating) SetStatus(ai.Status, UiKit.Amber);
             else if (!string.IsNullOrEmpty(ai.Status) && ai.Status.StartsWith("Built")) SetStatus(ai.Status, UiKit.Cyan);
             else if (!string.IsNullOrEmpty(ai.Status)) SetStatus(ai.Status, UiKit.Muted);

@@ -25,9 +25,10 @@ namespace Armory
         /// <summary>Test aid (bridge "autofire"): aims at the nearest alien and holds the trigger.</summary>
         public bool DebugAutoFire { get; set; }
         private Transform debugAim;
-        public bool Listening => recording;
-        public string MicDevice => micDevice;
-        public AudioClip MicClip => micClip;
+        public bool Listening => Mic != null && Mic.Recording;
+        public MicCapture Mic { get; private set; }
+        /// <summary>Live input level 0-1 while talking, for the HUD meter.</summary>
+        public float MicLevel => Mic != null ? Mic.Level : 0f;
         public AudioSource ShipVoice => shipVoice;
         public AudioSource MothershipVoice => motherVoice;
         public string Status { get; private set; } = "";
@@ -54,12 +55,7 @@ namespace Armory
         private int blueprintRequest;
 
         // Always-on looping mic; push-to-talk just marks start/end positions, so the first word is never clipped.
-        private string micDevice;
-        private AudioClip micClip;
-        private const int MicRate = 16000;
-        private const int MicSeconds = 30;
-        private bool recording;
-        private int recordStart;
+        private bool probing;
         private bool textEntryOpen;
         private string typed = "";
 
@@ -104,15 +100,28 @@ namespace Armory
 
         private void StartMic()
         {
-            if (Microphone.devices.Length == 0) { Status = "No microphone found. Press T to type."; return; }
-            micDevice = null;
-            foreach (var device in Microphone.devices)
+            Mic = new MicCapture(Settings.MicDeviceContains);
+            if (!Mic.Start()) Status = Mic.LastReport + " - press T to type";
+        }
+
+        /// <summary>Records from every device in turn and logs levels (bridge "miclevels" / Armory menu).</summary>
+        public void ProbeMics()
+        {
+            if (probing) return;
+            probing = true;
+            Status = "Testing microphones - speak now";
+            StartCoroutine(Run());
+
+            IEnumerator Run()
             {
-                string lower = device.ToLowerInvariant();
-                if (lower.Contains("oculus") || lower.Contains("quest") || lower.Contains("headset")) { micDevice = device; break; }
+                Mic.Stop();
+                yield return MicCapture.Probe(2f, report =>
+                {
+                    probing = false;
+                    Status = report.Contains("Best device") ? report.Substring(report.IndexOf("Best device")) : "No mic produced audio";
+                    Mic.Start();
+                });
             }
-            micClip = Microphone.Start(micDevice, true, MicSeconds, MicRate);
-            Debug.Log("ShipAI mic: " + (micDevice ?? "default device") + " | available: " + string.Join(", ", Microphone.devices));
         }
 
         private void Update()
@@ -126,8 +135,9 @@ namespace Armory
                 else Current.Tick(Rig.FireHeld, Rig.Aim);
             }
 
-            if (Rig.TalkHeld && !recording && !Busy) BeginRecording();
-            else if (!Rig.TalkHeld && recording) EndRecording();
+            if (Mic != null && Mic.Recording) Mic.Tick();
+            if (Rig.TalkHeld && Mic != null && !Mic.Recording && !Busy && !probing) BeginRecording();
+            else if (!Rig.TalkHeld && Mic != null && Mic.Recording) EndRecording();
 
             if (Rig.CannedPromptPressed >= 0 && !Busy) _ = Fabricate(CannedPrompts[Rig.CannedPromptPressed]);
             if (Rig.DropPressed && !Busy) Equip(WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(DefaultWeapon)), announce: false);
@@ -157,25 +167,18 @@ namespace Armory
 
         private void BeginRecording()
         {
-            if (micClip == null) { Status = "No microphone. Press T to type."; return; }
-            recording = true;
-            recordStart = Microphone.GetPosition(micDevice);
-            Status = "LISTENING...";
+            if (!Mic.Ready && !Mic.Start()) { Status = Mic.LastReport + " - press T to type"; return; }
+            Mic.BeginTalk();
+            Status = "Listening on " + MicCapture.Short(Mic.Device);
             ProceduralSfx.PlayAt(ProceduralSfx.Blip, Rig.Head.transform.position, 0.5f);
         }
 
         private void EndRecording()
         {
-            recording = false;
-            int end = Microphone.GetPosition(micDevice);
-            int length = (end - recordStart + micClip.samples) % micClip.samples;
-            if (length < MicRate / 3) { Status = "Too short - hold the grip while you speak."; return; }
-            var samples = new float[length];
-            // GetData wraps around the looping buffer for us.
-            micClip.GetData(samples, recordStart);
-            samples = WavPcm.TrimSilence(samples, 0.015f, MicRate / 8);
-            if (samples.Length < MicRate / 4) { Status = "I didn't hear anything. Check the mic."; return; }
-            _ = TranscribeAndFabricate(WavPcm.EncodeWav(samples, 1, MicRate));
+            var samples = Mic.EndTalk(out int rate);
+            Status = Mic.LastReport;
+            if (samples == null) return;
+            _ = TranscribeAndFabricate(WavPcm.EncodeWav(samples, 1, rate));
         }
 
         /// <summary>WAV bytes (any sample rate) → transcript → weapon. Mic push-to-talk ends here.</summary>
@@ -413,7 +416,7 @@ namespace Armory
 
         private void OnDestroy()
         {
-            if (micClip != null) Microphone.End(micDevice);
+            Mic?.Stop();
         }
     }
 }
