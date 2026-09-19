@@ -1,39 +1,28 @@
+using TMPro;
 using UnityEngine;
 
 namespace Armory
 {
-    /// <summary>Legacy TextMesh helpers (no TMP essentials import needed) and floating combat popups.</summary>
+    /// <summary>Floating combat popups (WEAK!, RESISTED, SHIELD DOWN...) in the HUD label face.</summary>
     public static class WorldText
     {
-        private static Font font;
-
-        public static TextMesh Create(Transform parent, Vector3 localPosition, float size, Color color, TextAnchor anchor = TextAnchor.MiddleCenter)
-        {
-            if (font == null) font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            var go = new GameObject("Text");
-            go.transform.SetParent(parent, false);
-            go.transform.localPosition = localPosition;
-            var text = go.AddComponent<TextMesh>();
-            text.font = font;
-            go.GetComponent<MeshRenderer>().sharedMaterial = font.material;
-            text.anchor = anchor;
-            text.alignment = anchor == TextAnchor.MiddleLeft || anchor == TextAnchor.UpperLeft ? TextAlignment.Left : TextAlignment.Center;
-            text.fontSize = 64;
-            text.characterSize = size;
-            text.color = color;
-            return text;
-        }
-
+        /// <param name="size">Legacy scale knob: 0.05 ≈ a readable callout at 15-25 m.</param>
         public static void Popup(Vector3 position, string message, Color color, float size = 0.05f)
         {
-            var text = Create(null, position, size, color);
+            var text = UiKit.Text(null, "Popup", position, size * 5f, UiKit.Label, color, TextAlignmentOptions.Center, width: 6f, tracking: 8f, uppercase: true);
+            text.transform.position = position;
             text.text = message;
+            text.outlineWidth = 0.18f;
+            text.outlineColor = new Color32(4, 8, 16, 220);
             text.gameObject.AddComponent<FloatAway>();
         }
 
         private sealed class FloatAway : MonoBehaviour
         {
             private float age;
+            private TextMeshPro text;
+
+            private void Awake() => text = GetComponent<TextMeshPro>();
 
             private void Update()
             {
@@ -41,12 +30,13 @@ namespace Armory
                 transform.position += Vector3.up * (1.2f * Time.deltaTime);
                 var cam = Camera.main;
                 if (cam != null) transform.rotation = Quaternion.LookRotation(transform.position - cam.transform.position);
+                if (text != null) text.alpha = Mathf.Clamp01((1f - age) * 3f);
                 if (age > 1f) Destroy(gameObject);
             }
         }
     }
 
-    /// <summary>Keeps a text panel facing the viewer.</summary>
+    /// <summary>Keeps a panel facing the viewer.</summary>
     public sealed class Billboard : MonoBehaviour
     {
         private void LateUpdate()

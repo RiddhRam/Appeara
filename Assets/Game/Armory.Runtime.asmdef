@@ -3,7 +3,8 @@
     "rootNamespace": "Armory",
     "references": [
         "Unity.InputSystem",
-        "Unity.XR.Management"
+        "Unity.XR.Management",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

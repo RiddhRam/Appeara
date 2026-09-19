@@ -26,7 +26,6 @@ Material:
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
   - _ALPHAPREMULTIPLY_ON
-  - _EMISSION
   - _SURFACE_TYPE_TRANSPARENT
   m_InvalidKeywords: []
   m_LightmapFlags: 0
@@ -128,7 +127,7 @@ Material:
     - _Smoothness: 0.35071355
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
-    - _SrcBlend: 5
+    - _SrcBlend: 1
     - _SrcBlendAlpha: 1
     - _Surface: 1
     - _UVSec: 0
@@ -137,7 +136,7 @@ Material:
     - _ZWrite: 0
     m_Colors:
     - _BaseColor: {r: 0.6020117, g: 0.9063317, b: 0.87161124, a: 0.35}
-    - _Color: {r: 0.6020117, g: 0.9063317, b: 0.87161124, a: 0.2}
+    - _Color: {r: 0.6020117, g: 0.9063317, b: 0.87161124, a: 0.35}
     - _EmissionColor: {r: 0.9030175, g: 1.3594975, b: 1.3074169, a: 0.3}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
   m_BuildTextureStacks: []

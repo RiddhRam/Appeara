@@ -25,7 +25,7 @@ namespace Armory
             weapon.Spec = spec;
             weapon.Muzzle = muzzle;
 
-            var label = WorldText.Create(root.transform, new Vector3(0f, 0.08f, 0.05f), 0.0016f, spec.Color);
+            var label = UiKit.Text(root.transform, "Label", new Vector3(0f, 0.075f, 0.05f), 0.011f, UiKit.Label, Color.Lerp(spec.Color, Color.white, 0.5f), TMPro.TextAlignmentOptions.Center, width: 0.4f, tracking: 10f, uppercase: true);
             label.text = spec.Name;
             label.gameObject.AddComponent<Billboard>();
 

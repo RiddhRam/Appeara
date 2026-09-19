@@ -94,7 +94,7 @@ namespace Armory
         {
             StartMic();
             // Small projection above the left wrist + a big one over the station's central projector for the audience.
-            wristBlueprint = BlueprintHologram.Create("Wrist Blueprint", Rig.LeftHand, new Vector3(0f, 0.26f, 0.05f), 0.3f, worldPosition: false, yawOnly: false);
+            wristBlueprint = BlueprintHologram.Create("Wrist Blueprint", Rig.LeftHand, new Vector3(0f, 0.36f, 0.02f), 0.26f, worldPosition: false, yawOnly: false);
             var center = ArmoryGame.Instance != null ? ArmoryGame.Instance.transform.position : Vector3.zero;
             coreBlueprint = BlueprintHologram.Create("Core Blueprint", transform, center + Vector3.up * 7f, 6f, worldPosition: true, yawOnly: true);
             Equip(WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(DefaultWeapon)), announce: false);

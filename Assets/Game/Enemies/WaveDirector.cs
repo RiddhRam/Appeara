@@ -73,7 +73,7 @@ namespace Armory
                 var wave = Waves[WaveIndex];
                 ArmoryGame.Instance.WaveLog.Clear();
                 State = $"WAVE {WaveIndex + 1}: {wave.Name}";
-                ShipAI.Instance?.SayShip($"Wave {WaveIndex + 1}. {wave.Hint}", State);
+                ShipAI.Instance?.SayShip($"Wave {WaveIndex + 1}. {wave.Hint}", $"Wave {WaveIndex + 1:00}  ·  {wave.Name}");
                 yield return SpawnWave(wave);
                 while (Alive > 0 || PendingSpawns > 0) yield return null;
                 bossAlive = false;

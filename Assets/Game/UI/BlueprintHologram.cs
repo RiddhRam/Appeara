@@ -14,7 +14,7 @@ namespace Armory
         private const float RevealSeconds = 1.6f;
 
         private Material material;
-        private TextMesh caption;
+        private TMPro.TextMeshPro caption;
         private bool yawOnly;
         private float revealStart = -1f;
 
@@ -30,7 +30,7 @@ namespace Armory
             var shader = Shader.Find("Armory/HologramBlueprint");
             hologram.material = shader != null ? new Material(shader) : new Material(Mats.Glow(new Color(0.3f, 0.9f, 1f), 0.5f));
             Mats.Shape(PrimitiveType.Quad, root.transform, Vector3.zero, Vector3.one * size, hologram.material, name: "Card");
-            hologram.caption = WorldText.Create(root.transform, new Vector3(0f, -size * 0.58f, 0f), size * 0.012f, new Color(0.5f, 0.95f, 1f));
+            hologram.caption = UiKit.Text(root.transform, "Caption", new Vector3(0f, -size * 0.53f, 0f), size * 0.045f, UiKit.Label, UiKit.Cyan, TMPro.TextAlignmentOptions.Top, width: size * 1.4f, tracking: 14f, uppercase: true);
             root.SetActive(false);
             return hologram;
         }
@@ -41,7 +41,7 @@ namespace Armory
             material.SetFloat(HasTex, 0f);
             material.SetFloat(Reveal, 1.1f);
             revealStart = -1f;
-            caption.text = title.ToUpperInvariant() + "\n<size=40>rendering schematic...</size>";
+            caption.text = title + "\n<size=60%><color=#6A8AA0>rendering schematic</color></size>";
         }
 
         public void Show(Texture2D texture, string title)
@@ -51,7 +51,7 @@ namespace Armory
             material.SetFloat(HasTex, 1f);
             material.SetFloat(Reveal, 0f);
             revealStart = Time.time;
-            caption.text = title.ToUpperInvariant();
+            caption.text = title + "\n<size=60%><color=#6A8AA0>schematic // ai concept render</color></size>";
         }
 
         private void LateUpdate()
