@@ -21,8 +21,7 @@ namespace Armory.AI
     /// </summary>
     public sealed class OpenAiClient
     {
-        private const string ChatUrl = "https://api.openai.com/v1/chat/completions";
-        private const string TranscribeUrl = "https://api.openai.com/v1/audio/transcriptions";
+        private const string OpenAiBaseUrl = "https://api.openai.com/v1";
 
         private readonly string key;
         private readonly AiSettings settings;
@@ -69,10 +68,10 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
             "\"sfxPrompt\":{\"type\":\"string\"}}}";
 
         /// <returns>Raw WeaponSpec JSON, or null.</returns>
-        public async Awaitable<string> InterpretWeapon(string request, string battleContext)
+        public async Awaitable<string> InterpretWeapon(string request, string battleContext, FabricationTrace trace = null)
         {
             string user = $"Player request: \"{request}\"\nBattle context: {battleContext}";
-            return await Chat(settings.WeaponModel, WeaponSystemPrompt, user, "weapon_spec", WeaponSchema, settings.WeaponTimeoutSeconds);
+            return await Chat(settings.WeaponModel, WeaponSystemPrompt, user, "weapon_spec", WeaponSchema, settings.WeaponTimeoutSeconds, trace, "openai.weapon_spec");
         }
 
         private static readonly string MothershipSystemPrompt =
@@ -109,25 +108,34 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
         /// Blueprint art for a weapon. Framed as whimsical game-prop concept art: literal "weapon schematic" prompts
         /// are (reasonably) refused by the image safety system. Retries once with a nameless prompt if refused.
         /// </summary>
-        public async Awaitable<byte[]> GenerateBlueprint(string weaponName, string colorName, string flavour)
+        public async Awaitable<byte[]> GenerateBlueprint(string weaponName, string colorName, string flavour, FabricationTrace trace = null)
         {
+            var span = trace?.StartSpan("openai.image", "Generate weapon blueprint");
             string style = " Side view line drawing in glowing cyan and white lines on a solid black background, decorative grid, " +
                            "made-up annotation labels and cute stat bars, stylized and cartoonish, like a game UI hologram.";
             string prompt = $"Holographic blueprint-style concept art for a whimsical sci-fi video game prop called '{weaponName}': " +
-                            $"a chunky, toy-like retro-futuristic gadget with glowing {colorName} energy cells and playful rounded shapes, {flavour}." + style;
-            var png = await Image(prompt);
-            if (png != null) return png;
-            string fallback = $"Holographic blueprint-style concept art of a whimsical, toy-like retro-futuristic sci-fi gadget with glowing {colorName} energy cells." + style;
-            return await Image(fallback);
+                           $"a chunky, toy-like retro-futuristic gadget with glowing {colorName} energy cells and playful rounded shapes, {flavour}." + style;
+            try
+            {
+                span?.SetTag("ai.model", settings.ImageModel);
+                var png = await Image(prompt, span);
+                if (png != null) return png;
+                span?.SetTag("image.retry", "safety_fallback");
+                string fallback = $"Holographic blueprint-style concept art of a whimsical, toy-like retro-futuristic sci-fi gadget with glowing {colorName} energy cells." + style;
+                return await Image(fallback, span);
+            }
+            catch (Exception error) { trace?.FinishSpan(span, error); throw; }
+            finally { trace?.FinishSpan(span); }
         }
 
-        private async Awaitable<byte[]> Image(string prompt)
+        private async Awaitable<byte[]> Image(string prompt, Sentry.ISpan span = null)
         {
             string body = "{\"model\":" + Http.Quote(settings.ImageModel) + ",\"prompt\":" + Http.Quote(prompt) +
                           ",\"size\":\"1024x1024\",\"quality\":" + Http.Quote(settings.ImageQuality) + ",\"n\":1}";
-            var request = Http.PostJson("https://api.openai.com/v1/images/generations", body);
-            request.SetRequestHeader("Authorization", "Bearer " + key);
-            var result = await Http.Send(request, 60f);
+            var request = Http.PostJson(Api("/images/generations"), body);
+            Authorize(request);
+            var result = await Http.Send(request, 60f, span, settings.UsesGateway);
+            span?.SetTag("http.status_code", result.Code.ToString());
             if (!result.Ok)
             {
                 LastError = $"Image {result.Code}: {Truncate(result.Text)}";
@@ -147,8 +155,11 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
         [Serializable] private sealed class ChatMessage { public string content; public string refusal; }
         [Serializable] private sealed class TranscriptResponse { public string text; }
 
-        private async Awaitable<string> Chat(string model, string system, string user, string schemaName, string schema, float timeout)
+        private async Awaitable<string> Chat(string model, string system, string user, string schemaName, string schema, float timeout,
+            FabricationTrace trace = null, string operation = "openai.chat")
         {
+            var span = trace?.StartSpan(operation, schemaName);
+            span?.SetTag("ai.model", model);
             var body = new StringBuilder();
             body.Append("{\"model\":").Append(Http.Quote(model));
             if (!string.IsNullOrEmpty(settings.ReasoningEffort)) body.Append(",\"reasoning_effort\":").Append(Http.Quote(settings.ReasoningEffort));
@@ -157,52 +168,80 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
             body.Append(",\"response_format\":{\"type\":\"json_schema\",\"json_schema\":{\"name\":").Append(Http.Quote(schemaName))
                 .Append(",\"strict\":true,\"schema\":").Append(schema).Append("}}}");
 
-            var request = Http.PostJson(ChatUrl, body.ToString());
-            request.SetRequestHeader("Authorization", "Bearer " + key);
-            float started = Time.realtimeSinceStartup;
-            var result = await Http.Send(request, timeout);
-            LastLatency = Time.realtimeSinceStartup - started;
-            if (!result.Ok)
-            {
-                LastError = $"OpenAI {result.Code}: {result.Error} {Truncate(result.Text)}";
-                Debug.LogWarning(LastError);
-                return null;
-            }
             try
             {
+                var request = Http.PostJson(Api("/chat/completions"), body.ToString());
+                Authorize(request);
+                float started = Time.realtimeSinceStartup;
+                var result = await Http.Send(request, timeout, span, settings.UsesGateway);
+                LastLatency = Time.realtimeSinceStartup - started;
+                span?.SetTag("http.status_code", result.Code.ToString());
+                if (!result.Ok)
+                {
+                    LastError = $"OpenAI {result.Code}: {result.Error} {Truncate(result.Text)}";
+                    span?.SetTag("outcome", "error");
+                    Debug.LogWarning(LastError);
+                    return null;
+                }
                 var response = JsonUtility.FromJson<ChatResponse>(result.Text);
                 var message = response?.choices?.FirstOrDefault()?.message;
-                if (message == null || !string.IsNullOrEmpty(message.refusal)) { LastError = "refused: " + message?.refusal; return null; }
+                if (message == null || !string.IsNullOrEmpty(message.refusal))
+                {
+                    LastError = "refused: " + message?.refusal;
+                    span?.SetTag("outcome", "refused");
+                    return null;
+                }
+                span?.SetTag("outcome", "ok");
                 return message.content;
             }
             catch (Exception error)
             {
                 LastError = "OpenAI parse: " + error.Message;
+                span?.SetTag("outcome", "exception");
                 return null;
             }
+            finally { trace?.FinishSpan(span); }
         }
 
-        public async Awaitable<string> Transcribe(byte[] wav)
+        public async Awaitable<string> Transcribe(byte[] wav, FabricationTrace trace = null)
         {
+            var span = trace?.StartSpan("openai.transcribe", "Speech to weapon request");
+            span?.SetTag("ai.model", settings.TranscribeModel);
             var form = new List<IMultipartFormSection>
             {
                 new MultipartFormDataSection("model", settings.TranscribeModel),
                 new MultipartFormDataSection("prompt", "A player asking a starship AI to build a weapon: shotgun, railgun, plasma, sticky mines, homing missiles, cryo, EMP, bouncing grenade, lightning."),
                 new MultipartFormFileSection("file", wav, "speech.wav", "audio/wav"),
             };
-            var request = UnityWebRequest.Post(TranscribeUrl, form);
-            request.SetRequestHeader("Authorization", "Bearer " + key);
-            float started = Time.realtimeSinceStartup;
-            var result = await Http.Send(request, 10f);
-            LastLatency = Time.realtimeSinceStartup - started;
-            if (!result.Ok)
+            try
             {
-                LastError = $"Transcribe {result.Code}: {result.Error} {Truncate(result.Text)}";
-                Debug.LogWarning(LastError);
-                return null;
+                var request = UnityWebRequest.Post(Api("/audio/transcriptions"), form);
+                Authorize(request);
+                float started = Time.realtimeSinceStartup;
+                var result = await Http.Send(request, 10f, span, settings.UsesGateway);
+                LastLatency = Time.realtimeSinceStartup - started;
+                span?.SetTag("http.status_code", result.Code.ToString());
+                if (!result.Ok)
+                {
+                    LastError = $"Transcribe {result.Code}: {result.Error} {Truncate(result.Text)}";
+                    Debug.LogWarning(LastError);
+                    return null;
+                }
+                return JsonUtility.FromJson<TranscriptResponse>(result.Text)?.text?.Trim();
             }
-            try { return JsonUtility.FromJson<TranscriptResponse>(result.Text)?.text?.Trim(); }
-            catch (Exception error) { LastError = error.Message; return null; }
+            catch (Exception error) { LastError = error.Message; span?.SetTag("outcome", "exception"); return null; }
+            finally { trace?.FinishSpan(span); }
+        }
+
+        private string Api(string path) => settings.UsesGateway ? settings.GatewayBaseUrl + "/openai/v1" + path : OpenAiBaseUrl + path;
+
+        private void Authorize(UnityWebRequest request)
+        {
+            if (settings.UsesGateway)
+            {
+                if (!string.IsNullOrEmpty(settings.GatewayToken)) request.SetRequestHeader("X-Armory-Gateway-Key", settings.GatewayToken);
+            }
+            else if (!string.IsNullOrEmpty(key)) request.SetRequestHeader("Authorization", "Bearer " + key);
         }
 
         private static string Truncate(string text) => text == null ? "" : text.Length > 300 ? text.Substring(0, 300) : text;

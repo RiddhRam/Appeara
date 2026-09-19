@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Armory.AI;
 using Armory.Core;
 using UnityEngine;
 
@@ -52,6 +53,7 @@ namespace Armory
         private readonly List<Coroutine> spawners = new List<Coroutine>();
         private float nextBossAdapt;
         private bool bossAlive;
+        private Sentry.ITransactionTracer activeWaveTrace;
 
         private void Awake() => Instance = this;
 
@@ -87,8 +89,13 @@ namespace Armory
                 yield return Armory(wave);
                 ArmoryGame.Instance.WaveLog.Clear();
                 State = $"WAVE {WaveIndex + 1}: {wave.Name}";
+                int enemyCount = 0;
+                foreach (var group in wave.Groups) enemyCount += group.Count;
+                activeWaveTrace = ArmoryTelemetry.StartWave(WaveIndex + 1, wave.Name, enemyCount);
                 yield return SpawnWave(wave);
                 while (Alive > 0 || PendingSpawns > 0) yield return null;
+                ArmoryTelemetry.FinishWave(activeWaveTrace, "cleared");
+                activeWaveTrace = null;
                 bossAlive = false;
 
                 if (WaveIndex == Waves.Count - 1) break;
@@ -170,12 +177,16 @@ namespace Armory
 
         public void OnCoreDestroyed()
         {
+            ArmoryTelemetry.FinishWave(activeWaveTrace, "core_breached");
+            activeWaveTrace = null;
             ShipAI.Instance?.SayShip("Core breached! Emergency repairs. Restarting the wave.", "CORE BREACHED");
             RestartWave(Mathf.Max(0, WaveIndex), 4f);
         }
 
         public void RestartWave(int index, float delay)
         {
+            ArmoryTelemetry.FinishWave(activeWaveTrace, "restarted");
+            activeWaveTrace = null;
             if (flow != null) StopCoroutine(flow);
             foreach (var spawner in spawners) if (spawner != null) StopCoroutine(spawner);
             spawners.Clear();
