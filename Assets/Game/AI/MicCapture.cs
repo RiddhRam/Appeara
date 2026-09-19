@@ -27,6 +27,10 @@ namespace Armory.AI
         public float Level { get; private set; }
         public string LastReport { get; private set; } = "";
         public int SilentCaptures { get; private set; }
+        public float LastPeak { get; private set; }
+        public float LastRms { get; private set; }
+        public float LastDurationSeconds { get; private set; }
+        public string LastVerdict { get; private set; } = "not_recorded";
 
         private readonly string preferred;
         private AudioClip clip;
@@ -109,17 +113,27 @@ namespace Armory.AI
 
             int end = Microphone.GetPosition(Device);
             int length = (end - startPosition + clip.samples) % clip.samples;
-            if (length <= 0) { LastReport = "captured nothing (device stalled)"; MarkSilent(); return null; }
+            if (length <= 0)
+            {
+                LastReport = "captured nothing (device stalled)";
+                LastPeak = 0f; LastRms = 0f; LastDurationSeconds = 0f; LastVerdict = "stalled";
+                MarkSilent();
+                return null;
+            }
 
             var raw = new float[length];
             clip.GetData(raw, startPosition);
             float rawPeak = VoiceAudio.Peak(raw);
+            LastPeak = rawPeak;
+            LastRms = VoiceAudio.Rms(raw);
+            LastDurationSeconds = length / (float)SampleRate;
             var samples = VoiceAudio.Downsample(raw, SampleRate, UploadRate, out rate);
             samples = VoiceAudio.Trim(samples, rate / 8);
             var verdict = VoiceAudio.Judge(samples, rate, out string report);
+            LastVerdict = verdict.ToString();
             float gain = verdict == CaptureVerdict.Ok ? VoiceAudio.Normalize(samples) : 1f;
             LastReport = report;
-            Debug.Log($"Mic capture: device='{Device}' {length / (float)SampleRate:0.00}s rawPeak={rawPeak:0.00000} rms={VoiceAudio.Rms(raw):0.00000} -> {verdict} ({report}) gain x{gain:0.0}");
+            Debug.Log($"Mic capture: device='{Device}' {LastDurationSeconds:0.00}s rawPeak={rawPeak:0.00000} rms={LastRms:0.00000} -> {verdict} ({report}) gain x{gain:0.0}");
 
             if (verdict == CaptureVerdict.Silent) { MarkSilent(); return null; }
             if (verdict != CaptureVerdict.Ok) return null;

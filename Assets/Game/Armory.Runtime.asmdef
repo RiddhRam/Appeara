@@ -2,6 +2,7 @@
     "name": "Armory.Runtime",
     "rootNamespace": "Armory",
     "references": [
+        "io.sentry.unity.runtime",
         "Unity.InputSystem",
         "Unity.XR.Management",
         "Unity.TextMeshPro"
