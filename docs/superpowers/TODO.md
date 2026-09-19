@@ -9,8 +9,20 @@ Branch `armory-vr`. Commits are local until someone runs `git push origin armory
 - **Voice capture fix** (commit `3fd5fcf`): mic diagnostics, live input meter, per-attempt reason, device fallback,
   `Armory → Mic Levels` probe. Transcription confirmed working in the headset.
 
+## Recently done (this session)
+- **Hive Avatar boss committed** (`2e25415`): Codex's art prefab + encounter prototype, plus a targeting fix.
+  The bone-anchored organs sat inside the body collider, so 3 of 4 organs were unhittable; body is now a torso
+  capsule, organs are pushed clear (`HiveTargets`), and body hits near an organ route to it. Ray-based tests added.
+- **Untimed ARMORY phase** (`45c682f`): waves wait for "ready" / right A button; core repairs between waves.
+
+## Known nits
+- Claw labels read mirrored from the player's viewpoint ("RIGHT CLAW" appears on the player's left).
+- Station architecture frames the boss fight awkwardly (arena proposal still open).
+- Art prefab (`HiveAvatarVisual.prefab`) is still not what `EnemyFactory` instantiates; runtime builds its own
+  plates/organs. Integration remains.
+
 ## Next up (ordered)
-1. **Armory phase timing** — user feedback: waves arrive with no time to talk. Untimed pre-wave ARMORY state:
+1. ~~**Armory phase timing**~~ done — remaining: multi-turn conversation during the phase — user feedback: waves arrive with no time to talk. Untimed pre-wave ARMORY state:
    no spawns, ARIA briefs, multi-turn conversation, wave starts only on "ready"/A. (Task 3 of armory-v2 plan.)
 2. **Latency: speech → firing under 2 s** — stream transcription during the hold, stream the weapon spec and start
    the fabrication animation early, parallel voice/SFX, local fallback if a call exceeds 2.5 s.
