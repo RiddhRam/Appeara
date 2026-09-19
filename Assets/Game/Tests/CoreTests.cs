@@ -208,4 +208,74 @@ namespace Armory.Tests
             Assert.AreEqual(FireMode.Projectile, weapon.FireMode);
         }
     }
+
+    public class VoiceAudioTests
+    {
+        private static float[] Tone(int count, float amplitude)
+        {
+            var samples = new float[count];
+            for (int i = 0; i < count; i++) samples[i] = Mathf.Sin(i * 0.05f) * amplitude;
+            return samples;
+        }
+
+        [Test]
+        public void SilentCaptureIsReportedNotSwallowed()
+        {
+            // The Quest virtual mic returned ~3e-5 peaks; that must surface as a reason, not vanish.
+            var verdict = VoiceAudio.Judge(Tone(16000, 0.00003f), 16000, out string report);
+            Assert.AreEqual(CaptureVerdict.Silent, verdict);
+            StringAssert.Contains("heard nothing", report);
+        }
+
+        [Test]
+        public void ShortCaptureIsReported()
+        {
+            Assert.AreEqual(CaptureVerdict.TooShort, VoiceAudio.Judge(Tone(1600, 0.4f), 16000, out string report));
+            StringAssert.Contains("too short", report);
+        }
+
+        [Test]
+        public void NormalSpeechPasses()
+        {
+            Assert.AreEqual(CaptureVerdict.Ok, VoiceAudio.Judge(Tone(24000, 0.08f), 16000, out _));
+        }
+
+        [Test]
+        public void QuietCaptureIsNormalisedNotRejected()
+        {
+            var samples = Tone(24000, 0.05f);
+            Assert.AreEqual(CaptureVerdict.Ok, VoiceAudio.Judge(samples, 16000, out _));
+            float gain = VoiceAudio.Normalize(samples);
+            Assert.Greater(gain, 1f);
+            Assert.AreEqual(VoiceAudio.TargetPeak, VoiceAudio.Peak(samples), 0.02f);
+        }
+
+        [Test]
+        public void VeryQuietCaptureIsLiftedButGainIsCapped()
+        {
+            // 12x is the ceiling: louder amplification would just raise the mic's hiss.
+            var samples = Tone(24000, 0.01f);
+            Assert.AreEqual(12f, VoiceAudio.Normalize(samples), 0.01f);
+            Assert.AreEqual(0.12f, VoiceAudio.Peak(samples), 0.01f);
+        }
+
+        [Test]
+        public void DownsampleKeepsDurationAndRate()
+        {
+            var samples = VoiceAudio.Downsample(Tone(48000, 0.5f), 48000, 16000, out int rate);
+            Assert.AreEqual(16000, rate);
+            Assert.AreEqual(16000, samples.Length);
+        }
+
+        [Test]
+        public void TrimUsesRelativeThresholdSoQuietMicsSurvive()
+        {
+            var samples = new float[16000];
+            for (int i = 6000; i < 7000; i++) samples[i] = 0.02f; // quiet speech burst
+            var trimmed = VoiceAudio.Trim(samples, 160);
+            Assert.Greater(trimmed.Length, 900);
+            Assert.Less(trimmed.Length, 1400);
+            Assert.IsEmpty(VoiceAudio.Trim(new float[8000], 160));
+        }
+    }
 }

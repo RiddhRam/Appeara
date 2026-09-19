@@ -29,6 +29,8 @@ namespace Armory.AI
         public string ImageModel = "gpt-image-2";
         public string ImageQuality = "low";
         public bool Speak = true;
+        [Tooltip("Force a microphone whose name contains this text; empty = auto (headset first, then any working device).")]
+        public string MicDeviceContains = "";
         public float WeaponTimeoutSeconds = 10f;
         public float MothershipTimeoutSeconds = 8f;
     }
