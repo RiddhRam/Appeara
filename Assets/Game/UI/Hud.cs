@@ -210,7 +210,9 @@ namespace Armory
                 weaponTraits.text = $"{spec.FireMode} · {spec.Payload}{mods}";
             }
             adaptations.text = ms == null || ms.History.Count == 0 ? "<color=#5A6678>none detected</color>" : string.Join("  ", ms.History.Select(c => c.ToString()));
-            hint.text = Rig.IsXR ? "grip talk · trigger fire · stick teleport" : "V talk · T type · 1-5 presets · Q/E pads";
+            hint.text = Rig.IsXR
+                ? "grip talk · trigger fire · stick move · click sprint · pads warp"
+                : "WASD move · shift sprint · V talk · T type · 1-5 presets · M menu";
         }
 
         private void RefreshComms()

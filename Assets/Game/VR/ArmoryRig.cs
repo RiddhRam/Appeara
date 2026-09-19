@@ -33,6 +33,20 @@ namespace Armory
         /// <summary>Right Y/B-side button (or M on desktop): opens the drydock menu.</summary>
         public bool MenuPressed { get; private set; }
         public Vector2 LeftStick { get; private set; }
+        /// <summary>Walk input: left stick in VR, WASD on desktop.</summary>
+        public Vector2 MoveAxis { get; private set; }
+        /// <summary>Thruster sprint: left stick click in VR, Shift on desktop.</summary>
+        public bool SprintHeld { get; private set; }
+        /// <summary>Floor-level position under the head, for pad detection.</summary>
+        public Vector3 FeetPosition
+        {
+            get
+            {
+                var feet = Head.transform.position;
+                feet.y = transform.position.y;
+                return feet;
+            }
+        }
         public Vector2 RightStick { get; private set; }
         public int CannedPromptPressed { get; private set; } = -1;
         public int DesktopTeleportStep { get; private set; }
@@ -51,7 +65,7 @@ namespace Armory
         private bool dropHeld;
         private bool readyHeld;
         private bool menuHeld;
-        private InputAction trigger, grip, drop, recenter, ready, menu, leftStick, rightStick;
+        private InputAction trigger, grip, drop, recenter, ready, menu, sprint, leftStick, rightStick;
 
         private static readonly InputFeatureUsage<Vector3> PointerPosition = new InputFeatureUsage<Vector3>("PointerPosition");
         private static readonly InputFeatureUsage<Quaternion> PointerRotation = new InputFeatureUsage<Quaternion>("PointerRotation");
@@ -84,6 +98,7 @@ namespace Armory
             recenter = Button("<XRController>{LeftHand}/primaryButton");
             ready = Button("<XRController>{RightHand}/primaryButton");
             menu = Button("<XRController>{LeftHand}/secondaryButton");
+            sprint = Button("<XRController>{LeftHand}/thumbstickClicked");
             leftStick = Stick("<XRController>{LeftHand}/thumbstick", "<XRController>{LeftHand}/primary2DAxis");
             rightStick = Stick("<XRController>{RightHand}/thumbstick", "<XRController>{RightHand}/primary2DAxis");
         }
@@ -125,7 +140,7 @@ namespace Armory
 
         private void OnDestroy()
         {
-            foreach (var action in new[] { trigger, grip, drop, recenter, ready, menu, leftStick, rightStick }) action?.Dispose();
+            foreach (var action in new[] { trigger, grip, drop, recenter, ready, menu, sprint, leftStick, rightStick }) action?.Dispose();
         }
 
         private IEnumerator StartXR()
@@ -210,6 +225,8 @@ namespace Armory
                 RightStick = rightStick.ReadValue<Vector2>();
                 readyNow = ready.IsPressed();
                 menuNow = menu.IsPressed();
+                MoveAxis = LeftStick;
+                SprintHeld = sprint.IsPressed();
             }
             else
             {
@@ -264,6 +281,7 @@ namespace Armory
             if (TextEntryActive)
             {
                 FireHeld = TalkHeld = false;
+                MoveAxis = Vector2.zero;
                 return;
             }
             FireHeld = mouse.leftButton.isPressed;
@@ -272,6 +290,14 @@ namespace Armory
             TypePressed = keyboard.tKey.wasPressedThisFrame;
             if (keyboard.qKey.wasPressedThisFrame) DesktopTeleportStep = -1;
             if (keyboard.eKey.wasPressedThisFrame) DesktopTeleportStep = 1;
+            var move = Vector2.zero;
+            if (keyboard.wKey.isPressed) move.y += 1f;
+            if (keyboard.sKey.isPressed) move.y -= 1f;
+            if (keyboard.dKey.isPressed) move.x += 1f;
+            if (keyboard.aKey.isPressed) move.x -= 1f;
+            MoveAxis = Vector2.ClampMagnitude(move, 1f);
+            SprintHeld = keyboard.leftShiftKey.isPressed;
+
             Key[] digits = { Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4, Key.Digit5 };
             for (int i = 0; i < digits.Length; i++)
                 if (keyboard[digits[i]].wasPressedThisFrame) CannedPromptPressed = i;

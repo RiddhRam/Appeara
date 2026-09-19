@@ -52,6 +52,18 @@ Branch `armory-vr`. Commits are local until someone runs `git push origin armory
     standalone visual prefab + animation controller and preserved an earlier gameplay prototype. Integrate
     the art prefab, fix left-claw collider occlusion, then continue the encounter scripting. Not final/polished.
 
+## Mobility as a fabricated item (user, 2026-09-20)
+Movement speed should be something you *spend* on, not a free stat:
+- A fabricable **mobility item** (thruster gauntlet / jet harness / grav-boots) that raises sprint speed, adds a
+  dash, or shortens pad charge time. It costs from the same per-wave fabrication budget as weapons, so taking
+  speed means giving up damage or rate of fire.
+- Say it out loud like any weapon: "give me thrusters", "something that makes me faster", "boots that dash".
+- Schema: add `kind: weapon | mobility` to the spec, with mobility fields (sprintBonus, dashDistance,
+  dashCooldown, padChargeScale) and its own budget costs.
+- Balance hook: mobility competes with firepower, and the hive's `rush` counter makes speed more valuable, so the
+  choice shifts by wave.
+- Base sprint stays free (left stick click) so the player is never stranded; the item makes it meaningfully faster.
+
 ## Weapon primitives to consider (user, 2026-09-20)
 Feasibility notes against the current controller scheme (right trigger fire, left grip talk):
 - **Beam / laser** — already implemented (`fireMode: beam`), continuous while trigger held. Keep.

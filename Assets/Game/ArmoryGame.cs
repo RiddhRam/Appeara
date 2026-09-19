@@ -75,6 +75,7 @@ namespace Armory
             locomotion.transform.SetParent(transform, false);
             locomotion.Rig = Rig;
             locomotion.LookTarget = transform.position;
+            LinkPads();
 
             director = new GameObject("Wave Director").AddComponent<WaveDirector>();
             director.transform.SetParent(transform, false);
@@ -118,6 +119,15 @@ namespace Armory
                 pad.transform.localPosition = Quaternion.Euler(0f, 180f + i * 90f, 0f) * Vector3.forward * PadRadius;
                 pad.AddComponent<TeleportPad>();
             }
+        }
+
+        /// <summary>Pads with no explicit link translocate to the pad on the opposite side of the arena.</summary>
+        private void LinkPads()
+        {
+            var pads = GetComponentsInChildren<TeleportPad>();
+            for (int i = 0; i < pads.Length; i++)
+                if (pads[i].Linked == null && pads.Length > 1)
+                    pads[i].Linked = pads[(i + pads.Length / 2) % pads.Length];
         }
 
         public void RecordDamage(ParsedWeapon weapon, float amount)
