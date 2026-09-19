@@ -54,6 +54,11 @@ namespace Armory.Editor
                 else if (command == "play") { EditorApplication.isPlaying = true; Write("playing"); }
                 else if (command == "stop") { EditorApplication.isPlaying = false; Write("stopped"); }
                 else if (command == "shot") Shot();
+                else if (command == "dump") Dump();
+                else if (command.StartsWith("fab ")) { _ = ShipAI.Instance.Fabricate(command.Substring(4)); Write("fabricating"); }
+                else if (command == "autofire") { ShipAI.Instance.DebugAutoFire = !ShipAI.Instance.DebugAutoFire; Write("autofire " + ShipAI.Instance.DebugAutoFire); }
+                else if (command == "skip") { WaveDirector.Instance.SkipWave(); Write("skipped"); }
+                else if (command == "state") Write(GameState());
                 else Write("unknown command: " + command);
             }
             catch (Exception error)
@@ -61,6 +66,46 @@ namespace Armory.Editor
                 Write("error: " + error);
                 Debug.LogException(error);
             }
+        }
+
+        private static void Dump()
+        {
+            var builder = new StringBuilder();
+            foreach (var root in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
+            {
+                var renderers = root.GetComponentsInChildren<Renderer>();
+                var bounds = renderers.Length > 0 ? renderers[0].bounds : new Bounds(root.transform.position, Vector3.zero);
+                foreach (var r in renderers) bounds.Encapsulate(r.bounds);
+                builder.AppendLine($"{root.name} active={root.activeSelf} pos={root.transform.position} rot={root.transform.eulerAngles} scale={root.transform.localScale} renderers={renderers.Length} bounds.center={bounds.center} size={bounds.size}");
+                foreach (Transform child in root.transform)
+                {
+                    var childRenderers = child.GetComponentsInChildren<Renderer>();
+                    if (childRenderers.Length == 0) { builder.AppendLine($"   {child.name} pos={child.position}"); continue; }
+                    var cb = childRenderers[0].bounds;
+                    foreach (var r in childRenderers) cb.Encapsulate(r.bounds);
+                    builder.AppendLine($"   {child.name} pos={child.position} center={cb.center} size={cb.size}");
+                }
+            }
+            Write(builder.ToString());
+        }
+
+        private static string GameState()
+        {
+            if (!EditorApplication.isPlaying || ShipAI.Instance == null) return "not playing";
+            var b = new StringBuilder();
+            var d = WaveDirector.Instance;
+            b.AppendLine($"state: {d.State} | wave {d.WaveIndex + 1} | alive {d.Alive} pending {d.PendingSpawns}");
+            b.AppendLine($"core: {StationCore.Instance.Health} | xr: {ArmoryGame.Instance.Rig.IsXR} | fps: {1f / Time.smoothDeltaTime:0}");
+            var ai = ShipAI.Instance;
+            b.AppendLine($"ai: status='{ai.Status}' busy={ai.Busy} openai={(ai.OpenAI != null)} err='{ai.OpenAI?.LastError}' latency={ai.OpenAI?.LastLatency:0.00} eleven={(ai.ElevenLabs != null)} err='{ai.ElevenLabs?.LastError}'");
+            if (ai.Current != null)
+            {
+                var w = ai.Current.Spec;
+                b.AppendLine($"weapon: {w.Name} | {w.FireMode} {w.Payload} [{w.Mods}] rate={w.FireRate:0.#} count={w.ProjectileCount} dmg={w.Damage:0.#} speed={w.ProjectileSpeed:0} body={w.Body} barrel={w.Barrel} color={w.Color} sfx='{w.SfxPrompt}' customSfx={(ai.Current.FireClip != null)}");
+            }
+            b.AppendLine($"mothership: {Mothership.Instance.Describe()} | wave log: {ArmoryGame.Instance.WaveLog.Summary()}");
+            foreach (var (speaker, text) in ai.Subtitles) b.AppendLine($"  {speaker}: {text}");
+            return b.ToString();
         }
 
         private static void Write(string text) => File.WriteAllText(ResultPath, text);
@@ -72,12 +117,9 @@ namespace Armory.Editor
             if (camera == null) { Write("no camera"); return; }
             var target = new RenderTexture(1280, 720, 24);
             var previousTarget = camera.targetTexture;
-            var previousEye = camera.stereoTargetEye;
-            camera.stereoTargetEye = StereoTargetEyeMask.None;
             camera.targetTexture = target;
             camera.Render();
             camera.targetTexture = previousTarget;
-            camera.stereoTargetEye = previousEye;
             RenderTexture.active = target;
             var texture = new Texture2D(1280, 720, TextureFormat.RGB24, false);
             texture.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0);

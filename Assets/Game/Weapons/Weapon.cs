@@ -1,0 +1,132 @@
+using Armory.Core;
+using UnityEngine;
+
+namespace Armory
+{
+    /// <summary>A held, assembled weapon. Fires projectiles/thrown objects or a continuous beam from the rig's aim pose.</summary>
+    public sealed class Weapon : MonoBehaviour
+    {
+        public ParsedWeapon Spec;
+        public Transform Muzzle;
+        public AudioClip FireClip;
+        public AudioClip ImpactClip;
+
+        private AudioSource source;
+        private float cooldown;
+        private LineRenderer beam;
+        private float beamTick;
+        private int beamTicks;
+
+        private void Awake()
+        {
+            source = gameObject.AddComponent<AudioSource>();
+            source.spatialBlend = 0.6f;
+            source.playOnAwake = false;
+        }
+
+        public void Tick(bool triggerHeld, Transform aim)
+        {
+            cooldown -= Time.deltaTime;
+            if (Spec.FireMode == FireMode.Beam) { UpdateBeam(triggerHeld, aim); return; }
+            if (!triggerHeld || cooldown > 0f) return;
+            cooldown = 1f / Spec.FireRate;
+            Fire(aim);
+        }
+
+        private void Fire(Transform aim)
+        {
+            Vector3 origin = Muzzle != null ? Muzzle.position : aim.position;
+            for (int i = 0; i < Spec.ProjectileCount; i++)
+            {
+                Vector2 jitter = Random.insideUnitCircle * Spec.SpreadDeg;
+                Vector3 direction = aim.rotation * Quaternion.Euler(jitter.y, jitter.x, 0f) * Vector3.forward;
+                if (Spec.FireMode == FireMode.Thrown) direction = Vector3.Slerp(direction, Vector3.up, 0.12f);
+                SpawnProjectile(origin, direction * Spec.ProjectileSpeed);
+            }
+            source.pitch = Random.Range(0.93f, 1.07f);
+            source.PlayOneShot(FireClip != null ? FireClip : ProceduralSfx.Shot(Spec.Payload), FireClip != null ? 0.9f : 0.6f);
+        }
+
+        private void SpawnProjectile(Vector3 origin, Vector3 velocity)
+        {
+            float size = Spec.Shape == ProjectileShape.Mine ? 0.16f : Spec.FireMode == FireMode.Thrown ? 0.14f : 0.08f;
+            PrimitiveType type = Spec.Shape == ProjectileShape.Disc || Spec.Shape == ProjectileShape.Mine ? PrimitiveType.Cylinder : Spec.Shape == ProjectileShape.Bolt ? PrimitiveType.Capsule : PrimitiveType.Sphere;
+            Vector3 scale = Spec.Shape == ProjectileShape.Bolt ? new Vector3(size * 0.6f, size * 2.5f, size * 0.6f)
+                : type == PrimitiveType.Cylinder ? new Vector3(size * 1.6f, size * 0.3f, size * 1.6f) : Vector3.one * size;
+
+            var go = new GameObject("Projectile");
+            go.transform.position = origin;
+            go.transform.rotation = Quaternion.LookRotation(velocity);
+            var visual = Mats.Shape(type, go.transform, Vector3.zero, scale, Mats.Glow(Spec.Color), name: "Visual");
+            if (Spec.Shape == ProjectileShape.Bolt) visual.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            if (Spec.Trail)
+            {
+                var trail = go.AddComponent<TrailRenderer>();
+                trail.sharedMaterial = Mats.Glow(Spec.Color);
+                trail.time = 0.12f;
+                trail.widthMultiplier = size * 0.8f;
+                trail.endWidth = 0f;
+                trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            go.AddComponent<Projectile>().Launch(Spec, velocity);
+        }
+
+        private void UpdateBeam(bool held, Transform aim)
+        {
+            if (beam == null)
+            {
+                beam = Mats.Line(transform, Spec.Color, 0.05f);
+                beam.enabled = false;
+            }
+            beam.enabled = held;
+            if (!held)
+            {
+                if (source.isPlaying && source.loop) source.Stop();
+                return;
+            }
+            if (!source.isPlaying)
+            {
+                source.clip = FireClip != null ? FireClip : ProceduralSfx.Shot(Spec.Payload);
+                source.loop = true;
+                source.volume = 0.5f;
+                source.Play();
+            }
+
+            Vector3 origin = Muzzle != null ? Muzzle.position : aim.position;
+            Vector3 direction = aim.forward;
+            const float range = 60f;
+            int pierce = Spec.Has(Mods.Piercing) ? Spec.PierceCount + 1 : 1;
+            var hits = Physics.SphereCastAll(origin, 0.15f, direction, range, ~0, QueryTriggerInteraction.Ignore);
+            System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+            float end = range;
+            var targets = new System.Collections.Generic.List<(Enemy, Vector3)>();
+            foreach (var hit in hits)
+            {
+                var enemy = hit.collider.GetComponentInParent<Enemy>();
+                if (enemy == null) { end = hit.distance; break; }
+                targets.Add((enemy, hit.point));
+                if (targets.Count >= pierce) { end = hit.distance; break; }
+            }
+            beam.widthMultiplier = 0.04f + Mathf.PingPong(Time.time * 0.3f, 0.03f);
+            beam.SetPosition(0, origin);
+            beam.SetPosition(1, origin + direction * end);
+
+            beamTick -= Time.deltaTime;
+            if (beamTick > 0f) return;
+            beamTick = 0.1f;
+            beamTicks++;
+            foreach (var (enemy, point) in targets)
+            {
+                if (enemy == null || !enemy.Alive) continue;
+                enemy.TakeHit(Spec, Spec.Damage * 0.1f);
+                if (Spec.Has(Mods.Slow) && enemy.Alive) enemy.ApplySlow(0.45f, 1f);
+                // Area effects pulse every half second so beams with splash/chain don't melt the frame.
+                if (beamTicks % 5 == 0)
+                {
+                    if (Spec.Has(Mods.Splash)) Effects.Explode(Spec, point, Spec.SplashRadius * 0.6f, Spec.Damage * 0.3f, enemy);
+                    if (Spec.Has(Mods.Chain)) Effects.Chain(Spec, point, enemy, Spec.ChainCount, Spec.Damage * 0.3f);
+                }
+            }
+        }
+    }
+}
