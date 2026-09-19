@@ -23,9 +23,9 @@ namespace Armory
 
         private Renderer[] renderers;
         private GameObject shieldBubble;
-        private float slowUntil;
-        private float slowFactor = 1f;
         private float flashUntil;
+        /// <summary>Element debuffs (burning, chilled, stunned...) driving speed, damage taken and tint.</summary>
+        public readonly StatusState Status = new StatusState();
         private float zigPhase;
         private float nextDodgeCheck;
         private float dodgeCooldown;
@@ -83,7 +83,7 @@ namespace Armory
 
             Vector3 forward = toTarget / distance;
             Vector3 side = Vector3.Cross(Vector3.up, forward);
-            float speed = Speed * (Time.time < slowUntil ? slowFactor : 1f);
+            float speed = Speed * Status.SpeedMultiplier(Time.time);
             Vector3 velocity = forward * speed;
             if (Kind == EnemyKind.Fast) velocity += side * (Mathf.Sin(Time.time * 3f + zigPhase) * speed * 0.8f);
             if (Kind == EnemyKind.Swarm) velocity += side * (Mathf.Sin(Time.time * 5f + zigPhase) * 1.5f);
@@ -108,11 +108,15 @@ namespace Armory
             if (velocity.sqrMagnitude > 0.01f)
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(new Vector3(velocity.x, 0f, velocity.z)), 8f * dt);
 
-            if (flashUntil > 0f && Time.time > flashUntil)
+            float burn = Status.BurnDamage(Time.time, dt);
+            if (burn > 0f)
             {
-                flashUntil = 0f;
-                SetTint(BaseColor);
+                Health -= burn;
+                if (Health <= 0f) { Die(true); return; }
             }
+            // Tint shows the active debuff (orange burning, blue chilled, yellow stunned) once the hit flash ends.
+            if (flashUntil > 0f && Time.time > flashUntil) flashUntil = 0f;
+            if (flashUntil <= 0f) SetTint(Status.Tint(Time.time) ?? BaseColor);
         }
 
         private Vector3 SeparationFrom(List<Enemy> others)
@@ -168,7 +172,9 @@ namespace Armory
             bool shield = ShieldUp;
             float multiplier = Avatar != null || ExternallyDriven ? 1f : DamageTable.Multiplier(Kind, weapon, shield, ms != null ? ms.Resistances : null);
             if (!ExternallyDriven && ms != null && ms.Has(CounterKind.Reflect) && (weapon.FireMode == FireMode.Beam || weapon.Payload == Payload.Plasma)) multiplier *= 0.25f;
-            float amount = Avatar != null ? Avatar.ResolveDamage(weapon, baseDamage, hitPoint) : baseDamage * multiplier;
+            float amount = Avatar != null
+                ? Avatar.ResolveDamage(weapon, baseDamage, hitPoint)
+                : baseDamage * multiplier * Status.DamageTakenMultiplier(Time.time);
             if (amount <= 0f) return 0f;
 
             if (shield)
@@ -196,11 +202,14 @@ namespace Armory
         public void ApplySlow(float factor, float seconds)
         {
             if (ExternallyDriven) return;
-            slowFactor = Mathf.Min(slowFactor, factor);
-            if (Time.time > slowUntil) slowFactor = factor;
-            slowUntil = Time.time + seconds;
-            SetTint(Color.Lerp(BaseColor, new Color(0.6f, 0.95f, 1f), 0.7f));
-            flashUntil = slowUntil;
+            Status.ApplySlow(Time.time);
+        }
+
+        /// <summary>Applies the debuff that belongs to a payload (plasma burns, cryo chills, electric stuns).</summary>
+        public void ApplyStatus(Payload payload, float damage)
+        {
+            if (!Alive || ExternallyDriven) return;
+            Status.Apply(payload, damage, Time.time);
         }
 
         private void Flash()

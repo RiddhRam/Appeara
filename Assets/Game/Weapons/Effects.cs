@@ -15,6 +15,7 @@ namespace Armory
             if (direct != null)
             {
                 direct.TakeHit(weapon, damage, point);
+                direct.ApplyStatus(weapon.Payload, damage);
                 if (weapon.Has(Mods.Slow)) direct.ApplySlow(0.45f, 2.5f);
             }
             if (weapon.Has(Mods.Splash)) Explode(weapon, point, weapon.SplashRadius, damage * 0.8f, direct);
@@ -34,6 +35,7 @@ namespace Armory
                 if (distance > radius + enemy.Radius) continue;
                 float falloff = Mathf.Lerp(1f, 0.4f, distance / (radius + enemy.Radius));
                 enemy.TakeHit(weapon, damage * falloff);
+                enemy.ApplyStatus(weapon.Payload, damage * falloff);
                 if (weapon.Has(Mods.Slow) && enemy.Alive) enemy.ApplySlow(0.45f, 2.5f);
             }
         }
@@ -51,6 +53,7 @@ namespace Armory
                 Lightning(origin, next.Center, weapon.Color);
                 origin = next.Center;
                 next.TakeHit(weapon, damage);
+                next.ApplyStatus(weapon.Payload, damage);
             }
             if (hit.Count > (first != null ? 1 : 0)) ProceduralSfx.PlayAt(ProceduralSfx.Zap, from, 0.5f);
         }

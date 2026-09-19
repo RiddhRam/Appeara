@@ -121,6 +121,7 @@ namespace Armory
             {
                 if (enemy == null || !enemy.Alive) continue;
                 enemy.TakeHit(Spec, Spec.Damage * 0.1f, point);
+                enemy.ApplyStatus(Spec.Payload, Spec.Damage * 0.1f);
                 if (Spec.Has(Mods.Slow) && enemy.Alive) enemy.ApplySlow(0.45f, 1f);
                 // Area effects pulse every half second so beams with splash/chain don't melt the frame.
                 if (beamTicks % 5 == 0)

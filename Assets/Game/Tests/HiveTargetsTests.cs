@@ -121,4 +121,67 @@ namespace Armory.Tests
             Assert.IsFalse(ShipAI.IsWaveStartPhrase(spoken), spoken);
         }
     }
+
+    public class StatusEffectTests
+    {
+        [Test]
+        public void PlasmaBurnsAndSoftensArmour()
+        {
+            var status = new StatusState();
+            status.Apply(Payload.Plasma, 30f, 0f);
+            Assert.IsTrue(status.Burning(1f));
+            Assert.Greater(status.BurnDamage(1f, 1f), 1f);
+            Assert.Greater(status.DamageTakenMultiplier(1f), 1f);
+            Assert.AreEqual(0f, status.BurnDamage(StatusState.BurnSeconds + 1f, 1f));
+        }
+
+        [Test]
+        public void CryoChillsThenLeavesThemBrittle()
+        {
+            var status = new StatusState();
+            status.Apply(Payload.Cryo, 20f, 0f);
+            Assert.AreEqual(StatusState.ChillSpeed, status.SpeedMultiplier(1f));
+            Assert.AreEqual(StatusState.BrittleDamage, status.DamageTakenMultiplier(1f), 0.001f);
+            Assert.AreEqual(1f, status.SpeedMultiplier(StatusState.ChillSeconds + 0.1f));
+        }
+
+        [Test]
+        public void ElectricStunsThemInPlace()
+        {
+            var status = new StatusState();
+            status.Apply(Payload.Electric, 15f, 0f);
+            Assert.AreEqual(0f, status.SpeedMultiplier(0.2f));
+            Assert.AreEqual(1f, status.SpeedMultiplier(StatusState.StunSeconds + 0.1f));
+        }
+
+        [Test]
+        public void KineticLeavesNoDebuff()
+        {
+            var status = new StatusState();
+            status.Apply(Payload.Kinetic, 40f, 0f);
+            Assert.IsFalse(status.Any(0.1f));
+            Assert.IsNull(status.Tint(0.1f));
+        }
+
+        [Test]
+        public void TintShowsTheActiveDebuff()
+        {
+            var burning = new StatusState();
+            burning.Apply(Payload.Plasma, 20f, 0f);
+            var chilled = new StatusState();
+            chilled.Apply(Payload.Cryo, 20f, 0f);
+            Assert.IsNotNull(burning.Tint(1f));
+            Assert.IsNotNull(chilled.Tint(1f));
+            Assert.AreNotEqual(burning.Tint(1f), chilled.Tint(1f));
+        }
+
+        [Test]
+        public void StackedDebuffsMultiplyIncomingDamage()
+        {
+            var status = new StatusState();
+            status.Apply(Payload.Cryo, 20f, 0f);
+            status.Apply(Payload.Plasma, 20f, 0f);
+            Assert.AreEqual(StatusState.BrittleDamage * StatusState.MeltDamage, status.DamageTakenMultiplier(1f), 0.001f);
+        }
+    }
 }
