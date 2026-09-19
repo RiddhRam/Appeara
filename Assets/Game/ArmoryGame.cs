@@ -87,6 +87,10 @@ namespace Armory
             var deck = new GameObject("Mission Deck").AddComponent<MissionDeck>();
             deck.transform.SetParent(transform, false);
             deck.Rig = Rig;
+
+            var sketch = new GameObject("Sketch Board").AddComponent<SketchBoard>();
+            sketch.transform.SetParent(transform, false);
+            sketch.Rig = Rig;
         }
 
         private void DisableOtherCameras()

@@ -69,10 +69,12 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
             "\"sfxPrompt\":{\"type\":\"string\"}}}";
 
         /// <returns>Raw WeaponSpec JSON, or null.</returns>
-        public async Awaitable<string> InterpretWeapon(string request, string battleContext)
+        /// <param name="sketchPng">Optional base64 PNG the player drew; the model sees it next to the request.</param>
+        public async Awaitable<string> InterpretWeapon(string request, string battleContext, string sketchPng = null)
         {
             string user = $"Player request: \"{request}\"\nBattle context: {battleContext}";
-            return await Chat(settings.WeaponModel, WeaponSystemPrompt, user, "weapon_spec", WeaponSchema, settings.WeaponTimeoutSeconds);
+            if (sketchPng != null) user += SketchNote;
+            return await Chat(settings.WeaponModel, WeaponSystemPrompt, user, "weapon_spec", WeaponSchema, settings.WeaponTimeoutSeconds, sketchPng);
         }
 
         private static readonly string MothershipSystemPrompt =
@@ -147,13 +149,22 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
         [Serializable] private sealed class ChatMessage { public string content; public string refusal; }
         [Serializable] private sealed class TranscriptResponse { public string text; }
 
-        private async Awaitable<string> Chat(string model, string system, string user, string schemaName, string schema, float timeout)
+        private const string SketchNote = " The player also sketched the weapon; use the drawing for its shape, silhouette and parts.";
+
+        private async Awaitable<string> Chat(string model, string system, string user, string schemaName, string schema, float timeout, string imagePng = null)
         {
             var body = new StringBuilder();
             body.Append("{\"model\":").Append(Http.Quote(model));
             if (!string.IsNullOrEmpty(settings.ReasoningEffort)) body.Append(",\"reasoning_effort\":").Append(Http.Quote(settings.ReasoningEffort));
             body.Append(",\"messages\":[{\"role\":\"system\",\"content\":").Append(Http.Quote(system))
-                .Append("},{\"role\":\"user\",\"content\":").Append(Http.Quote(user)).Append("}]");
+                .Append("},{\"role\":\"user\",\"content\":");
+            // A sketch rides along as vision input so the drawing shapes the weapon.
+            if (imagePng == null) body.Append(Http.Quote(user));
+            else
+                body.Append("[{\"type\":\"text\",\"text\":").Append(Http.Quote(user))
+                    .Append("},{\"type\":\"image_url\",\"image_url\":{\"url\":")
+                    .Append(Http.Quote("data:image/png;base64," + imagePng)).Append("}}]");
+            body.Append("}]");
             body.Append(",\"response_format\":{\"type\":\"json_schema\",\"json_schema\":{\"name\":").Append(Http.Quote(schemaName))
                 .Append(",\"strict\":true,\"schema\":").Append(schema).Append("}}}");
 

@@ -12,6 +12,7 @@ namespace Armory
         public AudioClip ImpactClip;
 
         private AudioSource source;
+        private bool warnedMissingSpec;
         private float cooldown;
         private LineRenderer beam;
         private float beamTick;
@@ -26,6 +27,12 @@ namespace Armory
 
         public void Tick(bool triggerHeld, Transform aim)
         {
+            // A weapon without a spec would throw every frame and flood the editor; report it once instead.
+            if (Spec == null)
+            {
+                if (!warnedMissingSpec) { warnedMissingSpec = true; Debug.LogWarning("Weapon '" + name + "' has no spec; ignoring it.", this); }
+                return;
+            }
             cooldown -= Time.deltaTime;
             if (Spec.FireMode == FireMode.Beam) { UpdateBeam(triggerHeld, aim); return; }
             if (!triggerHeld || cooldown > 0f) return;
