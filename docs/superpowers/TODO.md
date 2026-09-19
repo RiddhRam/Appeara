@@ -14,6 +14,14 @@ Branch `armory-vr`. Commits are local until someone runs `git push origin armory
   The bone-anchored organs sat inside the body collider, so 3 of 4 organs were unhittable; body is now a torso
   capsule, organs are pushed clear (`HiveTargets`), and body hits near an organ route to it. Ray-based tests added.
 - **Untimed ARMORY phase** (`45c682f`): waves wait for "ready" / right A button; core repairs between waves.
+- **Kestrel Drydock** (`aa5d755`): welcome screen + dev console (wave select, skip, restart, mic test, offline AI).
+  Opens on launch and on left Y / M; controller ray + trigger to press.
+
+## Blocked on animation (moved to the back, 2026-09-20)
+- **Boss attacks: stomp + shockwave, fireball, sweeping laser, enrage.** Codex did NOT animate these; only claw
+  sweeps, spore pods and wreckage exist, using imported clips. Scripting waits on Astra's clips and animation
+  events - brief: [hive-avatar-animation-brief.md](handoff/hive-avatar-animation-brief.md). Once the clips land,
+  the script side is: trigger -> wait for the named event -> spawn hazard -> re-enable movement.
 
 ## Known nits
 - Claw labels read mirrored from the player's viewpoint ("RIGHT CLAW" appears on the player's left).
