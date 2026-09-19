@@ -37,6 +37,11 @@ namespace Armory
             Instance = this;
             DisableOtherCameras();
             if (BuildFloor) BuildArenaFloor();
+            // The imported station has no colliders; grenades and mines need something to land on.
+            var floorCollider = new GameObject("Arena Floor Collider").AddComponent<BoxCollider>();
+            floorCollider.transform.SetParent(transform, false);
+            floorCollider.size = new Vector3(FloorRadius * 2f, 0.2f, FloorRadius * 2f);
+            floorCollider.center = new Vector3(0f, -0.1f, 0f);
 
             var core = new GameObject("Station Core");
             core.transform.SetParent(transform, false);

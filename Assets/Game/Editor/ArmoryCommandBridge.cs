@@ -59,6 +59,7 @@ namespace Armory.Editor
                 else if (command == "autofire") { ShipAI.Instance.DebugAutoFire = !ShipAI.Instance.DebugAutoFire; Write("autofire " + ShipAI.Instance.DebugAutoFire); }
                 else if (command == "skip") { WaveDirector.Instance.SkipWave(); Write("skipped"); }
                 else if (command == "state") Write(GameState());
+                else if (command == "reset") { Mothership.Instance.Clear(); Projectile.SurfaceHits.Clear(); Projectile.EnemyHits = 0; WaveDirector.Instance.RestartWave(0, 1f); Write("reset"); }
                 else Write("unknown command: " + command);
             }
             catch (Exception error)
@@ -103,6 +104,9 @@ namespace Armory.Editor
                 var w = ai.Current.Spec;
                 b.AppendLine($"weapon: {w.Name} | {w.FireMode} {w.Payload} [{w.Mods}] rate={w.FireRate:0.#} count={w.ProjectileCount} dmg={w.Damage:0.#} speed={w.ProjectileSpeed:0} body={w.Body} barrel={w.Barrel} color={w.Color} sfx='{w.SfxPrompt}' customSfx={(ai.Current.FireClip != null)}");
             }
+            b.Append("surface hits: ");
+            foreach (var pair in Projectile.SurfaceHits) b.Append(pair.Key).Append('=').Append(pair.Value).Append(' ');
+            b.AppendLine($"| enemy hits: {Projectile.EnemyHits} | projectiles live: {Projectile.All.Count} stuck: {Projectile.All.FindAll(p => p.Stuck).Count}");
             b.AppendLine($"mothership: {Mothership.Instance.Describe()} | wave log: {ArmoryGame.Instance.WaveLog.Summary()}");
             foreach (var (speaker, text) in ai.Subtitles) b.AppendLine($"  {speaker}: {text}");
             return b.ToString();

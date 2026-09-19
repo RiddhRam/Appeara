@@ -19,11 +19,7 @@ namespace Armory
             Health = MaxHealth;
             if (!BuildVisual)
             {
-                // Invisible blocker so shots into the centrepiece stop there.
-                var blocker = gameObject.AddComponent<CapsuleCollider>();
-                blocker.radius = ReachRadius * 0.8f;
-                blocker.height = 6f;
-                blocker.center = Vector3.up * 3f;
+                // The station's own centrepiece is the core; no collider so shots across the arena pass through.
                 spinner = new GameObject("Core Marker").transform;
                 spinner.SetParent(transform, false);
                 return;

@@ -11,6 +11,11 @@ namespace Armory
     public sealed class Projectile : MonoBehaviour
     {
         public static readonly List<Projectile> All = new List<Projectile>();
+        /// <summary>Debug: which non-enemy colliders projectiles hit (bridge "state").</summary>
+        public static readonly Dictionary<string, int> SurfaceHits = new Dictionary<string, int>();
+        public static int EnemyHits;
+        public const int MaxMines = 40;
+        private static readonly Queue<Projectile> mines = new Queue<Projectile>();
 
         public ParsedWeapon Weapon;
         public Vector3 Velocity;
@@ -29,6 +34,8 @@ namespace Armory
         private readonly HashSet<Enemy> alreadyHit = new HashSet<Enemy>();
 
         private bool Thrown => Weapon.FireMode == FireMode.Thrown;
+        /// <summary>Mines and sticky payloads are physical objects: they arc and land even from a "gun".</summary>
+        private float GravityScale => Thrown ? 1f : Weapon.Has(Mods.Sticky) || Weapon.Shape == ProjectileShape.Mine ? 0.6f : 0f;
         private bool Detonates => Thrown || Weapon.Has(Mods.Sticky) || Weapon.Has(Mods.Proximity) || Weapon.Payload == Payload.Explosive;
 
         private void OnEnable() => All.Add(this);
@@ -40,8 +47,8 @@ namespace Armory
             Velocity = velocity;
             piercesLeft = weapon.Has(Mods.Piercing) ? weapon.PierceCount : 0;
             bouncesLeft = weapon.Has(Mods.Bouncing) ? weapon.BounceCount : 0;
-            if (weapon.Has(Mods.Sticky) || weapon.Has(Mods.Proximity)) maxLife = 20f;
-            else if (Thrown) maxLife = 6f;
+            // Airborne life is short; landing as a mine extends it (see BecomeMine).
+            maxLife = Thrown || weapon.Has(Mods.Sticky) || weapon.Has(Mods.Proximity) ? 6f : 4f;
         }
 
         private void Update()
@@ -60,7 +67,7 @@ namespace Armory
             }
 
             if (Weapon.Has(Mods.Homing)) Steer(dt);
-            else if (Thrown) Velocity += Vector3.down * (Gravity * dt);
+            else Velocity += Vector3.down * (Gravity * GravityScale * dt);
 
             if (Weapon.Has(Mods.Proximity) && !Weapon.Has(Mods.Sticky) && life > 0.15f && AnyEnemyNear(ProximityRadius, null))
             {
@@ -83,7 +90,7 @@ namespace Armory
         private void Steer(float dt)
         {
             var target = Enemy.Nearest(transform.position + Velocity.normalized * 8f, 30f);
-            if (target == null) { if (Thrown) Velocity += Vector3.down * (Gravity * dt); return; }
+            if (target == null) { Velocity += Vector3.down * (Gravity * GravityScale * dt); return; }
             Vector3 desired = (target.Center - transform.position).normalized * Mathf.Max(Velocity.magnitude, 12f);
             Velocity = Vector3.RotateTowards(Velocity, desired, Mathf.Deg2Rad * 240f * dt, 30f * dt);
         }
@@ -93,6 +100,7 @@ namespace Armory
         {
             if (alreadyHit.Contains(enemy)) return false;
             alreadyHit.Add(enemy);
+            EnemyHits++;
 
             if (Weapon.Has(Mods.Sticky))
             {
@@ -113,6 +121,8 @@ namespace Armory
 
         private bool HitSurface(RaycastHit hit)
         {
+            string key = hit.collider.name;
+            SurfaceHits[key] = (SurfaceHits.TryGetValue(key, out var count) ? count : 0) + 1;
             if (bouncesLeft > 0)
             {
                 bouncesLeft--;
@@ -123,15 +133,27 @@ namespace Armory
             }
             if (Weapon.Has(Mods.Sticky) || (Weapon.Has(Mods.Proximity) && Thrown))
             {
-                // Becomes a mine on the floor/wall.
-                Stuck = true;
                 transform.position = hit.point + hit.normal * 0.05f;
-                if (!Weapon.Has(Mods.Proximity)) fuseAt = Time.time + 1.2f;
+                BecomeMine();
                 return true;
             }
             if (Detonates) { Finish(hit.point, null); return true; }
             Kill();
             return true;
+        }
+
+        private void BecomeMine()
+        {
+            Stuck = true;
+            if (!Weapon.Has(Mods.Proximity)) { fuseAt = Time.time + 1.2f; return; }
+            maxLife = life + 20f;
+            mines.Enqueue(this);
+            // Cap the minefield: oldest mines fizzle so spam can't tank the frame rate.
+            while (mines.Count > MaxMines)
+            {
+                var oldest = mines.Dequeue();
+                if (oldest != null && oldest.enabled) oldest.Kill();
+            }
         }
 
         private void StickTo(Enemy enemy, Vector3 point)

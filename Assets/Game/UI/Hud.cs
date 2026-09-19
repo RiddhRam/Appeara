@@ -19,12 +19,23 @@ namespace Armory
         {
             wrist = WorldText.Create(Rig.LeftHand, new Vector3(0f, 0.07f, 0.03f), 0.0019f, new Color(0.75f, 0.95f, 1f));
             wrist.gameObject.AddComponent<Billboard>();
+            Backplate(wrist.transform, new Vector3(0.3f, 0.13f, 1f));
 
             panel = new GameObject("Subtitle Panel").transform;
             panel.SetParent(transform, false);
             subtitles = WorldText.Create(panel, new Vector3(0f, -0.1f, 0f), 0.0075f, Color.white);
             banner = WorldText.Create(panel, new Vector3(0f, 0.22f, 0f), 0.014f, Color.cyan);
+            Backplate(subtitles.transform, new Vector3(1.9f, 0.55f, 1f));
             panel.position = Rig.Head.transform.position + Rig.Head.transform.forward * 2.5f;
+        }
+
+        /// <summary>Dark translucent card behind text so it reads against the bright station.</summary>
+        private static void Backplate(Transform text, Vector3 size)
+        {
+            var plate = Mats.Shape(PrimitiveType.Quad, text, new Vector3(0f, 0f, 0.01f), Vector3.one, Mats.Glow(new Color(0.02f, 0.03f, 0.06f), 0.75f), name: "Backplate");
+            // Text meshes are scaled by characterSize, so undo that for a size in metres.
+            var parentScale = text.lossyScale;
+            plate.transform.localScale = new Vector3(size.x / Mathf.Max(parentScale.x, 1e-4f), size.y / Mathf.Max(parentScale.y, 1e-4f), 1f);
         }
 
         public void ShowBanner(string text, Color color)
