@@ -580,3 +580,345 @@ Received Import Request.
 Start importing Assets/3D/Space Station/Space Station Scene.fbx using Guid(e0aa6204a368a4ea8a77983bffd824fa) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '4594e158350e02c819f3727cc03d13ac') in 0.678719792 seconds
 Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 620
 
+========================================================================
+Received Prepare
+WARNING: Shader Unsupported: 'Universal Render Pipeline/VR/SpatialMapping/Wireframe' - All subshaders removed
+WARNING: Shader Did you use #pragma only_renderers and omit this platform?
+WARNING: Shader If subshaders removal was intentional, you may have forgotten turning Fallback off?
+WARNING: Shader Unsupported: 'Universal Render Pipeline/VR/SpatialMapping/Wireframe' - All subshaders removed
+WARNING: Shader Did you use #pragma only_renderers and omit this platform?
+WARNING: Shader If subshaders removal was intentional, you may have forgotten turning Fallback off?
+Refreshing native plugins compatible for Editor in 8.63 ms, found 18 plugins.
+Preloading 1 native plugins for Editor in 0.38 ms.
+Unloading 22 Unused Serialized files (Serialized files now loaded: 0)
+Unloading 23 unused Assets / (1.9 MB). Loaded Objects now: 11125.
+Memory consumption went from 187.7 MB to 185.8 MB.
+Total: 8.803250 ms (FindLiveObjects: 0.248041 ms CreateObjectMapping: 0.092917 ms MarkObjects: 8.257958 ms  DeleteObjects: 0.203625 ms)
+
+Prepare: number of updated asset objects reloaded= 0
+Shader 'Meta/MRUK/Scene/HighlightsAndShadows': fallback shader 'Off' not found
+Shader 'Oculus/OVRMRCameraFrameLit': fallback shader 'Alpha-Diffuse' not found
+========================================================================
+Received Prepare
+Script 'CharacterController' has the same name as built-in Unity component.
+AddComponent and GetComponent will not work with this script.
+'Packages/com.meta.xr.sdk.core/Editor/RuntimeOptimizer/RuntimeOptimizerNetworking.cs' contains partial class of Unity.Object, exactly 1 of the partial classes needs to be in a file with the same filename. This is to know the one that can be referenced from ie. GameObjects
+'Packages/com.meta.xr.sdk.core/Editor/BuildingBlocks/BlocksWindow.cs' contains partial class of Unity.Object, exactly 1 of the partial classes needs to be in a file with the same filename. This is to know the one that can be referenced from ie. GameObjects
+'Packages/com.meta.xr.sdk.core/Editor/RuntimeOptimizer/RuntimeOptimizerStyles.cs' contains partial class of Unity.Object, exactly 1 of the partial classes needs to be in a file with the same filename. This is to know the one that can be referenced from ie. GameObjects
+'Packages/com.meta.xr.sdk.core/Editor/RuntimeOptimizer/RuntimeOptimizer.cs' contains partial class of Unity.Object, exactly 1 of the partial classes needs to be in a file with the same filename. This is to know the one that can be referenced from ie. GameObjects
+'Packages/com.meta.xr.sdk.core/Editor/BuildingBlocks/BlocksWindowDetailsExtension.cs' contains partial class of Unity.Object, exactly 1 of the partial classes needs to be in a file with the same filename. This is to know the one that can be referenced from ie. GameObjects
+'Packages/com.meta.xr.sdk.core/Editor/BuildingBlocks/BlocksWindowCollectionsPageExtension.cs' contains partial class of Unity.Object, exactly 1 of the partial classes needs to be in a file with the same filename. This is to know the one that can be referenced from ie. GameObjects
+WARNING: Shader Unsupported: 'Universal Render Pipeline/VR/SpatialMapping/Wireframe' - All subshaders removed
+WARNING: Shader Did you use #pragma only_renderers and omit this platform?
+WARNING: Shader If subshaders removal was intentional, you may have forgotten turning Fallback off?
+WARNING: Shader Unsupported: 'Universal Render Pipeline/VR/SpatialMapping/Wireframe' - All subshaders removed
+WARNING: Shader Did you use #pragma only_renderers and omit this platform?
+WARNING: Shader If subshaders removal was intentional, you may have forgotten turning Fallback off?
+Refreshing native plugins compatible for Editor in 5.26 ms, found 18 plugins.
+Preloading 1 native plugins for Editor in 0.35 ms.
+Unloading 22 Unused Serialized files (Serialized files now loaded: 0)
+Unloading 9948 unused Assets / (2.6 MB). Loaded Objects now: 11117.
+Memory consumption went from 192.2 MB to 189.6 MB.
+Total: 10.213500 ms (FindLiveObjects: 0.432959 ms CreateObjectMapping: 0.197125 ms MarkObjects: 8.283667 ms  DeleteObjects: 1.299375 ms)
+
+Prepare: number of updated asset objects reloaded= 0
+Shader 'Meta/MRUK/Scene/HighlightsAndShadows': fallback shader 'Off' not found
+Shader 'Oculus/OVRMRCameraFrameLit': fallback shader 'Alpha-Diffuse' not found
+========================================================================
+Received Prepare
+[Licensing::Client] Successfully resolved entitlement details
+Begin MonoManager ReloadAssembly
+[Licensing::Client] Successfully resolved entitlement details
+Thread 0x16b7bb000 may have been prematurely finalized
+Symbol file LoadedFromMemory is not a mono symbol file
+- Loaded All Assemblies, in  0.510 seconds
+Script 'CharacterController' has the same name as built-in Unity component.
+AddComponent and GetComponent will not work with this script.
+'Packages/com.meta.xr.sdk.core/Editor/RuntimeOptimizer/RuntimeOptimizerNetworking.cs' contains partial class of Unity.Object, exactly 1 of the partial classes needs to be in a file with the same filename. This is to know the one that can be referenced from ie. GameObjects
+'Packages/com.meta.xr.sdk.core/Editor/BuildingBlocks/BlocksWindow.cs' contains partial class of Unity.Object, exactly 1 of the partial classes needs to be in a file with the same filename. This is to know the one that can be referenced from ie. GameObjects
+'Packages/com.meta.xr.sdk.core/Editor/RuntimeOptimizer/RuntimeOptimizerStyles.cs' contains partial class of Unity.Object, exactly 1 of the partial classes needs to be in a file with the same filename. This is to know the one that can be referenced from ie. GameObjects
+'Packages/com.meta.xr.sdk.core/Editor/RuntimeOptimizer/RuntimeOptimizer.cs' contains partial class of Unity.Object, exactly 1 of the partial classes needs to be in a file with the same filename. This is to know the one that can be referenced from ie. GameObjects
+'Packages/com.meta.xr.sdk.core/Editor/BuildingBlocks/BlocksWindowDetailsExtension.cs' contains partial class of Unity.Object, exactly 1 of the partial classes needs to be in a file with the same filename. This is to know the one that can be referenced from ie. GameObjects
+'Packages/com.meta.xr.sdk.core/Editor/BuildingBlocks/BlocksWindowCollectionsPageExtension.cs' contains partial class of Unity.Object, exactly 1 of the partial classes needs to be in a file with the same filename. This is to know the one that can be referenced from ie. GameObjects
+Refreshing native plugins compatible for Editor in 3.64 ms, found 18 plugins.
+Assertion failed on expression: 'pred(*previous, *i)'
+Assertion failed on expression: 'pred(*previous, *i)'
+Assertion failed on expression: 'pred(*previous, *i)'
+Native extension for iOS target not found
+Native extension for Android target not found
+Native extension for OSXStandalone target not found
+[Package Manager] Failed to launch server process. Reason: Unity was launched with the -noUpm command-line argument
+[Package Manager] Unable to send message (not connected to server process).
+[Package Manager] Cannot connect to Unity Package Manager local server
+Refreshing native plugins compatible for Editor in 3.35 ms, found 18 plugins.
+[Package Manager] Failed to launch server process. Reason: Unity was launched with the -noUpm command-line argument
+[Package Manager] Unable to send message (not connected to server process).
+[Package Manager] Cannot connect to Unity Package Manager local server
+[Package Manager] Failed to launch server process. Reason: Unity was launched with the -noUpm command-line argument
+[Package Manager] Unable to send message (not connected to server process).
+[Package Manager] Cannot connect to Unity Package Manager local server
+[Package Manager] Failed to launch server process. Reason: Unity was launched with the -noUpm command-line argument
+[Package Manager] Unable to send message (not connected to server process).
+[Package Manager] Cannot connect to Unity Package Manager local server
+ScheduleIndexationOnStartup MainProcess:False IndexOnStartup:True
+Mono: successfully reloaded assembly
+[Package Manager] Failed to launch server process. Reason: Unity was launched with the -noUpm command-line argument
+[Package Manager] Unable to send message (not connected to server process).
+[Package Manager] Cannot connect to Unity Package Manager local server
+- Finished resetting the current domain, in  0.587 seconds
+Domain Reload Profiling: 1101ms
+	BeginReloadAssembly (125ms)
+		ExecutionOrderSort (0ms)
+		DisableScriptedObjects (14ms)
+		BackupInstance (0ms)
+		ReleaseScriptingObjects (0ms)
+		CreateAndSetChildDomain (42ms)
+	RebuildCommonClasses (19ms)
+	RebuildNativeTypeToScriptingClass (7ms)
+	initialDomainReloadingComplete (12ms)
+	LoadAllAssembliesAndSetupDomain (350ms)
+		LoadAssemblies (199ms)
+		RebuildTransferFunctionScriptingTraits (0ms)
+		AnalyzeDomain (177ms)
+			TypeCache.Refresh (20ms)
+				TypeCache.ScanAssembly (0ms)
+			BuildScriptInfoCaches (143ms)
+			ResolveRequiredComponents (11ms)
+	FinalizeReload (587ms)
+		ReleaseScriptCaches (0ms)
+		RebuildScriptCaches (0ms)
+		SetupLoadedEditorAssemblies (492ms)
+			LogAssemblyErrors (0ms)
+			InitializePlatformSupportModulesInManaged (8ms)
+			SetLoadedEditorAssemblies (4ms)
+			BeforeProcessingInitializeOnLoad (87ms)
+			ProcessInitializeOnLoadAttributes (298ms)
+			ProcessInitializeOnLoadMethodAttributes (95ms)
+			AfterProcessingInitializeOnLoad (1ms)
+			EditorAssembliesLoaded (0ms)
+		ExecutionOrderSort2 (0ms)
+		AwakeInstancesAfterBackupRestoration (5ms)
+WARNING: Shader Unsupported: 'Universal Render Pipeline/VR/SpatialMapping/Wireframe' - All subshaders removed
+WARNING: Shader Did you use #pragma only_renderers and omit this platform?
+WARNING: Shader If subshaders removal was intentional, you may have forgotten turning Fallback off?
+WARNING: Shader Unsupported: 'Universal Render Pipeline/VR/SpatialMapping/Wireframe' - All subshaders removed
+WARNING: Shader Did you use #pragma only_renderers and omit this platform?
+WARNING: Shader If subshaders removal was intentional, you may have forgotten turning Fallback off?
+Refreshing native plugins compatible for Editor in 3.87 ms, found 18 plugins.
+Preloading 1 native plugins for Editor in 0.35 ms.
+Unloading 22 Unused Serialized files (Serialized files now loaded: 0)
+Unloading 10041 unused Assets / (4.4 MB). Loaded Objects now: 11042.
+Memory consumption went from 201.5 MB to 197.1 MB.
+Total: 9.555000 ms (FindLiveObjects: 0.425041 ms CreateObjectMapping: 0.277500 ms MarkObjects: 7.400042 ms  DeleteObjects: 1.452084 ms)
+
+Prepare: number of updated asset objects reloaded= 0
+Shader 'Meta/MRUK/Scene/HighlightsAndShadows': fallback shader 'Off' not found
+Shader 'Oculus/OVRMRCameraFrameLit': fallback shader 'Alpha-Diffuse' not found
+========================================================================
+Received Import Request.
+  Time since last request: 575.923820 seconds.
+  path: Assets/AlienAnimal/aa_low_None_AmbientOcclusion.jpg
+  artifactKey: Guid(2ee43d822ef290148b4ac4422421fbb0) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/AlienAnimal/aa_low_None_AmbientOcclusion.jpg using Guid(2ee43d822ef290148b4ac4422421fbb0) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '2534b9485428827a678aa1e4f3367ab0') in 0.060227208 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000040 seconds.
+  path: Assets/AlienAnimal/Spec_2.jpg
+  artifactKey: Guid(cfc09f66a58fe034db6fbf11e65b1cb4) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/AlienAnimal/Spec_2.jpg using Guid(cfc09f66a58fe034db6fbf11e65b1cb4) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '806fc0ddd429cedd518889a8c8c30874') in 0.006146333 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000031 seconds.
+  path: Assets/AlienAnimal/Metallic.jpg
+  artifactKey: Guid(ef39e7bd5ccd7d24cb6f839e51cd1a71) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/AlienAnimal/Metallic.jpg using Guid(ef39e7bd5ccd7d24cb6f839e51cd1a71) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '03e0adc4683c820cf36eecc80a082460') in 0.004915958 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000037 seconds.
+  path: Assets/AlienAnimal/Nor OpenGL.jpg
+  artifactKey: Guid(ed62515bc5eb5c443a6bd8f614a42205) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/AlienAnimal/Nor OpenGL.jpg using Guid(ed62515bc5eb5c443a6bd8f614a42205) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '290e3dfcb2f5b2bbb5d877a0456d5150') in 0.081334834 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000076 seconds.
+  path: Assets/AlienAnimal/Unity_Gloss.jpg
+  artifactKey: Guid(07e097ba503aab546801718e97ac4d57) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/AlienAnimal/Unity_Gloss.jpg using Guid(07e097ba503aab546801718e97ac4d57) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'e8d4106fe98afbb1100b882ebca8fe0d') in 0.004381208 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000045 seconds.
+  path: Assets/AlienAnimal/Unity_Diffuse.jpg
+  artifactKey: Guid(812af581d2437f64c81fd3425bcbbd13) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/AlienAnimal/Unity_Diffuse.jpg using Guid(812af581d2437f64c81fd3425bcbbd13) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'ff4122670d3afe73f6ea882d844dbf88') in 0.004869292 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 43.546830 seconds.
+  path: Assets/Scripts/Weapons/WeaponRuntime.cs
+  artifactKey: Guid(eabac4b6e84594fee9fee16a111edd53) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/Scripts/Weapons/WeaponRuntime.cs using Guid(eabac4b6e84594fee9fee16a111edd53) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: '9393cf36b2c2e2e00fb30f33b3710c74') in 0.029826625 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000057 seconds.
+  path: Assets/Scripts/Weapons/WeaponRecipeExamples.cs
+  artifactKey: Guid(7efa6720cb4e046f5ba90b2a48f3f710) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/Scripts/Weapons/WeaponRecipeExamples.cs using Guid(7efa6720cb4e046f5ba90b2a48f3f710) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: '82985d7c36e6fa22456e50721069db4a') in 0.001602875 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000040 seconds.
+  path: Assets/AlienAnimal/Unity_Gloss.jpg
+  artifactKey: Guid(07e097ba503aab546801718e97ac4d57) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/Unity_Gloss.jpg using Guid(07e097ba503aab546801718e97ac4d57) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: '41241afbae246aa6406988ef51446c87') in 0.022760292 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000036 seconds.
+  path: Assets/AlienAnimal/Materials/Base Color.mat
+  artifactKey: Guid(be6b3e860f975c046a0167eac6e39688) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/Materials/Base Color.mat using Guid(be6b3e860f975c046a0167eac6e39688) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: 'c6c2e627f482f326338eed85cc8908ed') in 0.008921542 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000039 seconds.
+  path: Assets/AlienAnimal/Unity_Diffuse.jpg
+  artifactKey: Guid(812af581d2437f64c81fd3425bcbbd13) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/Unity_Diffuse.jpg using Guid(812af581d2437f64c81fd3425bcbbd13) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: 'fceb83252a5b6b363a99205b1850d4d5') in 0.004237834 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000035 seconds.
+  path: Assets/AlienAnimal/aa.unity
+  artifactKey: Guid(942c3c9f0f8ce7a4a9adcf597373e1d7) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/aa.unity using Guid(942c3c9f0f8ce7a4a9adcf597373e1d7) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: '933d74350d516662cc3a5fd352ed757e') in 0.002457917 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000051 seconds.
+  path: Assets/AlienAnimal/aa_low_None_AmbientOcclusion.jpg
+  artifactKey: Guid(2ee43d822ef290148b4ac4422421fbb0) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/aa_low_None_AmbientOcclusion.jpg using Guid(2ee43d822ef290148b4ac4422421fbb0) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: '86950c571c3506a7f86963eb6d9a164f') in 0.004243625 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000058 seconds.
+  path: Assets/AlienAnimal/aa_low.001.controller
+  artifactKey: Guid(037398ef15606204ba9a1eeed5790593) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/aa_low.001.controller using Guid(037398ef15606204ba9a1eeed5790593) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: '429f7e6d9b6b6dca537c054d6597bdde') in 0.003089167 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 4
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000037 seconds.
+  path: Assets/AlienAnimal/Rougness.jpg
+  artifactKey: Guid(b50518d91914d75479a192635f3a40a2) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/Rougness.jpg using Guid(b50518d91914d75479a192635f3a40a2) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: 'e3d577a2450db4e9f78c53f113747602') in 0.004148208 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000041 seconds.
+  path: Assets/AlienAnimal/Materials/Material.001.mat
+  artifactKey: Guid(ab32850f301332e4ca860760730a24af) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/Materials/Material.001.mat using Guid(ab32850f301332e4ca860760730a24af) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: 'f21a75e1ff9685b5cd4190115cb963c1') in 0.002041 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000053 seconds.
+  path: Assets/AlienAnimal/Nor OpenGL.jpg
+  artifactKey: Guid(ed62515bc5eb5c443a6bd8f614a42205) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/Nor OpenGL.jpg using Guid(ed62515bc5eb5c443a6bd8f614a42205) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: '0bac7306d15c478f836a87a1438b23cd') in 0.003716584 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 101.637996 seconds.
+  path: Assets/AlienAnimal/Materials/Material.001.mat
+  artifactKey: Guid(ab32850f301332e4ca860760730a24af) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/Materials/Material.001.mat using Guid(ab32850f301332e4ca860760730a24af) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: '5c2bbb664b603eef5a3ac1fd8c48cd56') in 0.006055083 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000058 seconds.
+  path: Assets/AlienAnimal/Materials/Base Color.mat
+  artifactKey: Guid(be6b3e860f975c046a0167eac6e39688) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/Materials/Base Color.mat using Guid(be6b3e860f975c046a0167eac6e39688) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: 'fc6a5d813dec3674b5bbe3fb48859b91') in 0.00379075 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000041 seconds.
+  path: Assets/AlienAnimal/Materials/AA_eye Kopie.mat
+  artifactKey: Guid(97e5be11209047f43b177757d36e609e) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/Materials/AA_eye Kopie.mat using Guid(97e5be11209047f43b177757d36e609e) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: '9eca33f1442d4357560758fdc7c28f59') in 0.003098292 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000046 seconds.
+  path: Assets/AlienAnimal/Materials/Material.003.mat
+  artifactKey: Guid(5388274a0b23f1b4693ab7a1e9cdd340) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/Materials/Material.003.mat using Guid(5388274a0b23f1b4693ab7a1e9cdd340) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: 'b57ef82002369e769f9838420cfe64b5') in 0.002439167 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000047 seconds.
+  path: Assets/AlienAnimal/Materials/Unity_Diffuse.mat
+  artifactKey: Guid(ad2bc93abc1f7824f986ab3eb29df2c0) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/Materials/Unity_Diffuse.mat using Guid(ad2bc93abc1f7824f986ab3eb29df2c0) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: '7d919e83add89ebd40b45e4a386928e3') in 0.009479375 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 6
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000040 seconds.
+  path: Assets/AlienAnimal/Materials/Material.004.mat
+  artifactKey: Guid(3369d8fe9aa3f644fa28c00ed5f8b777) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/Materials/Material.004.mat using Guid(3369d8fe9aa3f644fa28c00ed5f8b777) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: '3cf621fe99c6096d4fe4d18a97b0c440') in 0.00239975 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 38.936205 seconds.
+  path: Assets/AlienAnimal/Materials/Base Color.mat
+  artifactKey: Guid(be6b3e860f975c046a0167eac6e39688) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/Materials/Base Color.mat using Guid(be6b3e860f975c046a0167eac6e39688) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: '20848ece655721046c4113f5f2435b66') in 0.004551541 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.000033 seconds.
+  path: Assets/Scenes/SpaceStation.unity
+  artifactKey: Guid(124db1b22f0844ee29cd1f23009395c3) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/Scenes/SpaceStation.unity using Guid(124db1b22f0844ee29cd1f23009395c3) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: 'd7c5b69c1a25b96a98bda8df97c56c4b') in 0.002007042 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 1.850920 seconds.
+  path: Assets/AlienAnimal/aa
+  artifactKey: Guid(946648eb48a7447268dec843cc9a5eb2) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d)
+Start importing Assets/AlienAnimal/aa using Guid(946648eb48a7447268dec843cc9a5eb2) Importer(2089858483,b0f066a214c2f5e87bad3c948f4d605d) (ScriptedImporter) -> (artifact id: '93d0412fa346bfcb55c9898bd8368355') in 0.002527792 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
