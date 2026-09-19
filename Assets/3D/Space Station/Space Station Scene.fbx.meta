@@ -3,7 +3,102 @@ guid: e0aa6204a368a4ea8a77983bffd824fa
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Drohn_1
+    second: {fileID: 2100000, guid: c4fe77f0255536740b4ef77ce06ac87b, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Holo_Green
+    second: {fileID: 2100000, guid: 0ef87f8a2e5120e43805c1fa0bd0f920, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Laser-Tower__t1_UVMap_color_jpg
+    second: {fileID: 2100000, guid: 89e2d73d57ddffc48a915c16db8c9a72, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Panic_Bot_001__InfoBot_Panic_Bot_color_png
+    second: {fileID: 2100000, guid: f805c579b1bf1ad478025d30a110ad3b, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Railing__Railings_texture_UVMap_color_jpg
+    second: {fileID: 2100000, guid: ac6685d05a7405e41b78dd01874b4817, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Red_Laser__t1_UVMap_color_jpg
+    second: {fileID: 2100000, guid: cb20e50928e8a5b47981ffa5c6325168, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Red_Text
+    second: {fileID: 2100000, guid: 38e873d8d09b50f459a411055d269210, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Sartfighter__texture_3_UVMap_color_png_001
+    second: {fileID: 2100000, guid: 7fec1ed2966034e40960068ec1746851, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Star_Fighter_Fire
+    second: {fileID: 2100000, guid: 03a7104e42a655a4da54f8585660d479, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Starfighter_Laser
+    second: {fileID: 2100000, guid: 60911d5a736fc4f4aa692b3fc250894d, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Station-Inside__Room_1_Done_UVMap_color_3_jpg
+    second: {fileID: 2100000, guid: 62620b50ab4d9e5439469c330852366a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Station-Outside__out_side_UVMap_color_png
+    second: {fileID: 2100000, guid: 337f3bc5ae4a03941924db8642b6c8f6, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Windows
+    second: {fileID: 2100000, guid: 8b36cf31238a2ed4d9716b700c26b858, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: door
+    second: {fileID: 2100000, guid: 9f98bbdf26afafd4d85d79b7c0209254, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: hologram
+    second: {fileID: 2100000, guid: 7f574ddab4e8c23489079ec23da0597b, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: hologram_ground
+    second: {fileID: 2100000, guid: 8f9e2db6f27d44848a54f9409bc6e913, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: hologram_radar-blue
+    second: {fileID: 2100000, guid: 141e7dbf1c9fb7d4cb01f955be288c05, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: scifi_column__column_UVMap_color_jpg
+    second: {fileID: 2100000, guid: efbe7e92e5abb234aae4c8aff9f97ab1, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: window_shutter__a4
+    second: {fileID: 2100000, guid: 18975b26f0dd3ef4b980e47a9f4354ec, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0
