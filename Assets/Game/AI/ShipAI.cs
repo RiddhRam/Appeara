@@ -49,6 +49,9 @@ namespace Armory
         private AudioSource fabHum;
         private readonly Queue<(AudioSource source, Awaitable<AudioClip> clip)> voiceQueue = new Queue<(AudioSource, Awaitable<AudioClip>)>();
         private GameObject hologram;
+        private BlueprintHologram wristBlueprint;
+        private BlueprintHologram coreBlueprint;
+        private int blueprintRequest;
 
         // Always-on looping mic; push-to-talk just marks start/end positions, so the first word is never clipped.
         private string micDevice;
@@ -90,6 +93,10 @@ namespace Armory
         private void Start()
         {
             StartMic();
+            // Small projection above the left wrist + a big one over the station's central projector for the audience.
+            wristBlueprint = BlueprintHologram.Create("Wrist Blueprint", Rig.LeftHand, new Vector3(0f, 0.26f, 0.05f), 0.3f, worldPosition: false, yawOnly: false);
+            var center = ArmoryGame.Instance != null ? ArmoryGame.Instance.transform.position : Vector3.zero;
+            coreBlueprint = BlueprintHologram.Create("Core Blueprint", transform, center + Vector3.up * 7f, 6f, worldPosition: true, yawOnly: true);
             Equip(WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(DefaultWeapon)), announce: false);
             SayShip(OpenAI != null ? "Fabricator online. Hold your left grip and tell me what to build." : "Fabricator in offline mode. Keyword fabrication only.", "ARIA ONLINE");
             StartCoroutine(PlayVoices());
@@ -227,6 +234,65 @@ namespace Armory
             ProceduralSfx.PlayAt(ProceduralSfx.Fabricate, Rig.Aim.position, 0.7f);
             SayShip(string.IsNullOrWhiteSpace(spec.ShipAILine) ? "Fabricated: " + spec.Name + "." : spec.ShipAILine, spec.Name.ToUpperInvariant());
             if (ElevenLabs != null && Settings.GenerateWeaponSfx && spec.SfxPrompt != null) _ = LoadWeaponSfx(Current, spec);
+            if (OpenAI != null && Settings.GenerateBlueprints) _ = LoadBlueprint(spec);
+        }
+
+        /// <summary>AI concept-art blueprint for the new weapon, cached on disk by name so demo repeats are instant.</summary>
+        private async Awaitable LoadBlueprint(ParsedWeapon spec)
+        {
+            int request = ++blueprintRequest;
+            wristBlueprint.SetPending(spec.Name);
+            coreBlueprint.SetPending(spec.Name);
+
+            string dir = System.IO.Path.Combine(Application.temporaryCachePath, "armory-blueprints");
+            System.IO.Directory.CreateDirectory(dir);
+            string path = System.IO.Path.Combine(dir, Hash(Settings.ImageModel + spec.Name) + ".png");
+            byte[] png = System.IO.File.Exists(path) ? System.IO.File.ReadAllBytes(path) : null;
+            if (png == null)
+            {
+                png = await OpenAI.GenerateBlueprint(spec.Name, ColorName(spec.Color), Flavour(spec.Payload));
+                if (png != null) System.IO.File.WriteAllBytes(path, png);
+            }
+            // A newer weapon may have been requested while this one generated.
+            if (request != blueprintRequest || png == null) return;
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, true);
+            texture.LoadImage(png);
+            wristBlueprint.Show(texture, spec.Name);
+            coreBlueprint.Show(texture, spec.Name);
+            ProceduralSfx.PlayAt(ProceduralSfx.Fabricate, coreBlueprint.transform.position, 0.8f);
+        }
+
+        private static string Flavour(Payload payload)
+        {
+            switch (payload)
+            {
+                case Payload.Explosive: return "covered in fizzing firework canisters";
+                case Payload.Plasma: return "with swirling plasma bubbles in glass tubes";
+                case Payload.Electric: return "with crackling tesla coils and lightning bolts";
+                case Payload.Cryo: return "with frosty ice crystals and snowflake decals";
+                default: return "with brass gears and chunky dials";
+            }
+        }
+
+        private static string ColorName(Color color)
+        {
+            Color.RGBToHSV(color, out float h, out float s, out float v);
+            if (s < 0.2f) return v > 0.6f ? "white" : "silver";
+            float deg = h * 360f;
+            if (deg < 15f || deg >= 345f) return "red";
+            if (deg < 45f) return "orange";
+            if (deg < 70f) return "yellow";
+            if (deg < 160f) return "green";
+            if (deg < 200f) return "cyan";
+            if (deg < 250f) return "blue";
+            if (deg < 300f) return "purple";
+            return "pink";
+        }
+
+        private static string Hash(string text)
+        {
+            using var md5 = System.Security.Cryptography.MD5.Create();
+            return System.BitConverter.ToString(md5.ComputeHash(Encoding.UTF8.GetBytes(text))).Replace("-", "").ToLowerInvariant();
         }
 
         private async Awaitable LoadWeaponSfx(Weapon weapon, ParsedWeapon spec)

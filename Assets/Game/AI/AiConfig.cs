@@ -24,6 +24,10 @@ namespace Armory.AI
         public string MothershipVoiceId = "N2lVS1w4EtoT3dr4eOWO";
         public float MothershipPitch = 0.82f;
         public bool GenerateWeaponSfx = true;
+        [Tooltip("AI-generated blueprint hologram per weapon. gpt-image-2 ≈ 20 s (best), gpt-image-1-mini ≈ 8 s.")]
+        public bool GenerateBlueprints = true;
+        public string ImageModel = "gpt-image-2";
+        public string ImageQuality = "low";
         public bool Speak = true;
         public float WeaponTimeoutSeconds = 10f;
         public float MothershipTimeoutSeconds = 8f;

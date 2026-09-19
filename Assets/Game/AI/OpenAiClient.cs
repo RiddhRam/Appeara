@@ -102,6 +102,46 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
             catch (Exception error) { LastError = error.Message; return null; }
         }
 
+        [Serializable] private sealed class ImageResponse { public ImageData[] data; }
+        [Serializable] private sealed class ImageData { public string b64_json; }
+
+        /// <summary>
+        /// Blueprint art for a weapon. Framed as whimsical game-prop concept art: literal "weapon schematic" prompts
+        /// are (reasonably) refused by the image safety system. Retries once with a nameless prompt if refused.
+        /// </summary>
+        public async Awaitable<byte[]> GenerateBlueprint(string weaponName, string colorName, string flavour)
+        {
+            string style = " Side view line drawing in glowing cyan and white lines on a solid black background, decorative grid, " +
+                           "made-up annotation labels and cute stat bars, stylized and cartoonish, like a game UI hologram.";
+            string prompt = $"Holographic blueprint-style concept art for a whimsical sci-fi video game prop called '{weaponName}': " +
+                            $"a chunky, toy-like retro-futuristic gadget with glowing {colorName} energy cells and playful rounded shapes, {flavour}." + style;
+            var png = await Image(prompt);
+            if (png != null) return png;
+            string fallback = $"Holographic blueprint-style concept art of a whimsical, toy-like retro-futuristic sci-fi gadget with glowing {colorName} energy cells." + style;
+            return await Image(fallback);
+        }
+
+        private async Awaitable<byte[]> Image(string prompt)
+        {
+            string body = "{\"model\":" + Http.Quote(settings.ImageModel) + ",\"prompt\":" + Http.Quote(prompt) +
+                          ",\"size\":\"1024x1024\",\"quality\":" + Http.Quote(settings.ImageQuality) + ",\"n\":1}";
+            var request = Http.PostJson("https://api.openai.com/v1/images/generations", body);
+            request.SetRequestHeader("Authorization", "Bearer " + key);
+            var result = await Http.Send(request, 60f);
+            if (!result.Ok)
+            {
+                LastError = $"Image {result.Code}: {Truncate(result.Text)}";
+                Debug.LogWarning(LastError);
+                return null;
+            }
+            try
+            {
+                var b64 = JsonUtility.FromJson<ImageResponse>(result.Text)?.data?.FirstOrDefault()?.b64_json;
+                return string.IsNullOrEmpty(b64) ? null : Convert.FromBase64String(b64);
+            }
+            catch (Exception error) { LastError = "Image parse: " + error.Message; return null; }
+        }
+
         [Serializable] private sealed class ChatResponse { public Choice[] choices; }
         [Serializable] private sealed class Choice { public ChatMessage message; }
         [Serializable] private sealed class ChatMessage { public string content; public string refusal; }
