@@ -44,5 +44,8 @@ namespace Armory
         }
 
         public void Repair() => Health = MaxHealth;
+
+        /// <summary>Gradual repair used by the armory phase between waves.</summary>
+        public void Repair(float amount) => Health = Mathf.Min(MaxHealth, Health + Mathf.Max(0f, amount));
     }
 }

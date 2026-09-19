@@ -28,6 +28,8 @@ namespace Armory
         public bool TalkHeld { get; private set; }
         public bool DropPressed { get; private set; }
         public bool RecenterPressed { get; private set; }
+        /// <summary>Right A button (or Enter on desktop): starts the wave from the armory phase.</summary>
+        public bool ReadyPressed { get; private set; }
         public Vector2 LeftStick { get; private set; }
         public Vector2 RightStick { get; private set; }
         public int CannedPromptPressed { get; private set; } = -1;
@@ -45,7 +47,8 @@ namespace Armory
         private float desktopPitch;
         private bool recenterHeld;
         private bool dropHeld;
-        private InputAction trigger, grip, drop, recenter, leftStick, rightStick;
+        private bool readyHeld;
+        private InputAction trigger, grip, drop, recenter, ready, leftStick, rightStick;
 
         private static readonly InputFeatureUsage<Vector3> PointerPosition = new InputFeatureUsage<Vector3>("PointerPosition");
         private static readonly InputFeatureUsage<Quaternion> PointerRotation = new InputFeatureUsage<Quaternion>("PointerRotation");
@@ -76,6 +79,7 @@ namespace Armory
             grip = Button("<XRController>{LeftHand}/gripPressed");
             drop = Button("<XRController>{RightHand}/secondaryButton");
             recenter = Button("<XRController>{LeftHand}/primaryButton");
+            ready = Button("<XRController>{RightHand}/primaryButton");
             leftStick = Stick("<XRController>{LeftHand}/thumbstick", "<XRController>{LeftHand}/primary2DAxis");
             rightStick = Stick("<XRController>{RightHand}/thumbstick", "<XRController>{RightHand}/primary2DAxis");
         }
@@ -117,7 +121,7 @@ namespace Armory
 
         private void OnDestroy()
         {
-            foreach (var action in new[] { trigger, grip, drop, recenter, leftStick, rightStick }) action?.Dispose();
+            foreach (var action in new[] { trigger, grip, drop, recenter, ready, leftStick, rightStick }) action?.Dispose();
         }
 
         private IEnumerator StartXR()
@@ -190,6 +194,7 @@ namespace Armory
             DesktopTeleportStep = 0;
             TypePressed = false;
 
+            bool readyNow = false;
             bool dropNow, recenterNow;
             if (IsXR)
             {
@@ -199,12 +204,17 @@ namespace Armory
                 recenterNow = recenter.IsPressed();
                 LeftStick = leftStick.ReadValue<Vector2>();
                 RightStick = rightStick.ReadValue<Vector2>();
+                readyNow = ready.IsPressed();
             }
             else
             {
                 UpdateDesktop(out dropNow, out recenterNow);
             }
 
+            if (!IsXR && Keyboard.current != null && !TextEntryActive)
+                readyNow = Keyboard.current.enterKey.isPressed || Keyboard.current.numpadEnterKey.isPressed;
+            ReadyPressed = readyNow && !readyHeld;
+            readyHeld = readyNow;
             DropPressed = dropNow && !dropHeld;
             dropHeld = dropNow;
             RecenterPressed = recenterNow && !recenterHeld;

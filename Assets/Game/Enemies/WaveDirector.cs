@@ -28,8 +28,10 @@ namespace Armory
         }
 
         public float SpawnRadius = 38f;
-        public float BreakSeconds = 8f;
-        public float IntroSeconds = 6f;
+        [Tooltip("Minimum seconds in the armory phase before the wave can be started.")]
+        public float ArmoryMinimumSeconds = 3f;
+        [Tooltip("Core integrity repaired per second while in the armory phase.")]
+        public float ArmoryRepairPerSecond = 2f;
 
         public int WaveIndex { get; private set; } = -1;
         public string State { get; private set; } = "Standing by";
@@ -53,7 +55,15 @@ namespace Armory
 
         private void Awake() => Instance = this;
 
-        private void Start() => flow = StartCoroutine(Run(0, IntroSeconds));
+        /// <summary>True while the player is between waves and free to design a weapon.</summary>
+        public bool InArmory { get; private set; }
+
+        private bool startRequested;
+
+        private void Start() => flow = StartCoroutine(Run(0, 0f));
+
+        /// <summary>Player said "ready" or pressed the button; the wave starts on the next frame.</summary>
+        public void RequestWaveStart() => startRequested = true;
 
         private void Update()
         {
@@ -66,30 +76,52 @@ namespace Armory
 
         private IEnumerator Run(int startIndex, float delay)
         {
-            State = "Incoming in " + Mathf.CeilToInt(delay) + "s";
-            yield return new WaitForSeconds(delay);
+            if (delay > 0f)
+            {
+                State = "Incoming in " + Mathf.CeilToInt(delay) + "s";
+                yield return new WaitForSeconds(delay);
+            }
             for (WaveIndex = startIndex; WaveIndex < Waves.Count; WaveIndex++)
             {
                 var wave = Waves[WaveIndex];
+                yield return Armory(wave);
                 ArmoryGame.Instance.WaveLog.Clear();
                 State = $"WAVE {WaveIndex + 1}: {wave.Name}";
-                ShipAI.Instance?.SayShip($"Wave {WaveIndex + 1}. {wave.Hint}", $"Wave {WaveIndex + 1:00}  ·  {wave.Name}");
                 yield return SpawnWave(wave);
                 while (Alive > 0 || PendingSpawns > 0) yield return null;
                 bossAlive = false;
 
                 if (WaveIndex == Waves.Count - 1) break;
                 State = "Wave cleared. Mothership adapting...";
-                float breakEnds = Time.time + BreakSeconds;
                 _ = Mothership.Instance.AdaptAfterWave(ArmoryGame.Instance.WaveLog, Waves[WaveIndex + 1].Name);
-                while (Mothership.Instance.Thinking || Time.time < breakEnds)
-                {
-                    State = $"Next wave in {Mathf.CeilToInt(Mathf.Max(0f, breakEnds - Time.time))}s · ask the ship AI for a counter";
-                    yield return null;
-                }
+                while (Mothership.Instance.Thinking) yield return null;
             }
             State = "VICTORY. The station holds.";
             ShipAI.Instance?.SayShip("The mothership is retreating. Not bad for a pile of improvised weapons.", "VICTORY");
+        }
+
+        /// <summary>
+        /// Untimed armory phase: nothing spawns, the core repairs, and ARIA briefs the player. The wave starts only
+        /// when the player says "ready" or presses the button, so there is always time to design a weapon.
+        /// </summary>
+        private IEnumerator Armory(Wave wave)
+        {
+            InArmory = true;
+            startRequested = false;
+            float earliest = Time.time + ArmoryMinimumSeconds;
+            string prompt = WaveIndex == 0 ? "Say \"ready\" when you want the first wave." : "Say \"ready\" when you want them.";
+            ShipAI.Instance?.SayShip($"Armory phase. Next: {wave.Name}. {wave.Hint} {prompt}", "ARMORY  ·  " + wave.Name);
+
+            while (!startRequested || Time.time < earliest)
+            {
+                State = "ARMORY · design a weapon · say \"ready\" to begin";
+                var core = StationCore.Instance;
+                if (core != null && ArmoryRepairPerSecond > 0f) core.Repair(ArmoryRepairPerSecond * Time.deltaTime);
+                yield return null;
+            }
+            InArmory = false;
+            startRequested = false;
+            ShipAI.Instance?.SayShip($"Wave {WaveIndex + 1}. Good luck.", $"Wave {WaveIndex + 1:00}  ·  {wave.Name}");
         }
 
         private IEnumerator SpawnWave(Wave wave)

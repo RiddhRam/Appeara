@@ -142,6 +142,7 @@ namespace Armory
             if (Rig.CannedPromptPressed >= 0 && !Busy) _ = Fabricate(CannedPrompts[Rig.CannedPromptPressed]);
             if (Rig.DropPressed && !Busy) Equip(WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(DefaultWeapon)), announce: false);
             if (Rig.TypePressed && !Busy) { textEntryOpen = true; typed = ""; }
+            if (Rig.ReadyPressed) WaveDirector.Instance?.RequestWaveStart();
 
             if (hologram != null)
             {
@@ -194,9 +195,28 @@ namespace Armory
             await Fabricate(text);
         }
 
+        /// <summary>"Ready", "start the wave", "bring them on" - starts the wave instead of building a weapon.</summary>
+        public static bool IsWaveStartPhrase(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return false;
+            string t = text.ToLowerInvariant().Trim().Trim('.', '!', '?', ',');
+            if (t.Length > 40) return false;
+            string[] phrases = { "ready", "i'm ready", "im ready", "start", "start the wave", "start wave", "begin", "bring them on", "bring it on", "send them", "let's go", "lets go", "go" };
+            foreach (var phrase in phrases) if (t == phrase || t.EndsWith(" " + phrase) || t.StartsWith(phrase + " ")) return true;
+            return false;
+        }
+
         public async Awaitable Fabricate(string request)
         {
             if (Busy) return;
+            var director = WaveDirector.Instance;
+            if (director != null && director.InArmory && IsWaveStartPhrase(request))
+            {
+                AddSubtitle("YOU", request);
+                director.RequestWaveStart();
+                Status = "Wave starting";
+                return;
+            }
             Busy = true;
             LastTranscript = request;
             AddSubtitle("YOU", request);

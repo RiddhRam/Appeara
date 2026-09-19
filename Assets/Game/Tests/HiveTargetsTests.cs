@@ -98,4 +98,27 @@ namespace Armory.Tests
             }
         }
     }
+
+    public class WaveStartPhraseTests
+    {
+        [TestCase("ready")]
+        [TestCase("Ready!")]
+        [TestCase("I'm ready")]
+        [TestCase("start the wave")]
+        [TestCase("ok bring them on")]
+        [TestCase("let's go")]
+        public void StartsTheWave(string spoken)
+        {
+            Assert.IsTrue(ShipAI.IsWaveStartPhrase(spoken), spoken);
+        }
+
+        [TestCase("give me a shotgun that fires sticky mines")]
+        [TestCase("ready the plasma cannon with homing rounds and a big magazine")]
+        [TestCase("make something that goes boom")]
+        [TestCase("")]
+        public void BuildsAWeaponInstead(string spoken)
+        {
+            Assert.IsFalse(ShipAI.IsWaveStartPhrase(spoken), spoken);
+        }
+    }
 }
