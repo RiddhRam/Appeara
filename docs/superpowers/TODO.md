@@ -14,8 +14,18 @@ Branch `armory-vr`. Commits are local until someone runs `git push origin armory
   The bone-anchored organs sat inside the body collider, so 3 of 4 organs were unhittable; body is now a torso
   capsule, organs are pushed clear (`HiveTargets`), and body hits near an organ route to it. Ray-based tests added.
 - **Untimed ARMORY phase** (`45c682f`): waves wait for "ready" / right A button; core repairs between waves.
+- **Locomotion** (`7a83663`): smooth stick movement, thruster sprint (left stick click / shift), stand-on
+  translocator pads linked across the arena, comfort vignette, arena bounds.
+- **Element status effects** (`9656e2c`): burning/melting, chilled/brittle, stunned, stagger, with enemy tints.
+- **Sketch board** (`789c535`): draw during armory; PNG goes to the model as vision input with the spoken request.
 - **Kestrel Drydock** (`aa5d755`): welcome screen + dev console (wave select, skip, restart, mic test, offline AI).
   Opens on launch and on left Y / M; controller ray + trigger to press.
+
+## Asset orders out
+- **Elemental VFX for Codex**: [asset-order-elements.md](handoff/asset-order-elements.md) - status prefabs
+  (burning/chilled/stunned), impacts, muzzle flashes, trails, death effects. Status debuffs currently read only
+  as a colour tint; the hooks to attach prefabs already exist.
+- **Boss animation for Astra**: [hive-avatar-animation-brief.md](handoff/hive-avatar-animation-brief.md).
 
 ## Blocked on animation (moved to the back, 2026-09-20)
 - **Boss attacks: stomp + shockwave, fireball, sweeping laser, enrage.** Codex did NOT animate these; only claw
