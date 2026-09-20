@@ -1,4 +1,4 @@
-"""Private key-holding gateway for the Alien Armory fabrication loop.
+"""Private key-holding gateway for the Appeara fabrication loop.
 
 Unity sends no OpenAI or ElevenLabs credential to this service.  The service also continues the
 ``sentry-trace``/``baggage`` headers Unity attaches, producing one cross-service trace per weapon.
@@ -38,7 +38,7 @@ sentry_sdk.init(
     send_default_pii=False,
 )
 
-app = FastAPI(title="Alien Armory Gateway", version="1.0.0")
+app = FastAPI(title="Appeara Gateway", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin for origin in os.getenv("CORS_ORIGINS", "*").split(",") if origin],

@@ -1,4 +1,4 @@
-# Alien Armory working TODO
+# Appeara working TODO
 
 Branch: `armory-vr`. Latest art pass: [Claude handoff](../../CLAUDE_HANDOFF.md).
 

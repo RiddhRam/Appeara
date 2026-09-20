@@ -1,4 +1,4 @@
-# Alien Armory gateway
+# Appeara gateway
 
 The gateway keeps provider keys out of Unity and joins Unity's `sentry-trace` and `baggage` headers to the server-side model calls.
 

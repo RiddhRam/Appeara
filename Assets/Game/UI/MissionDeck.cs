@@ -45,11 +45,14 @@ namespace Armory
             panel.SetFloat("_Chamfer", 0.07f);
 
             float left = -Width / 2f + Pad, top = Height / 2f;
-            UiKit.Text(card, "Title", new Vector3(left, top - 0.028f, 0f), 0.05f, UiKit.Label, UiKit.Cyan,
+            // The game's own name sits above the location: the drydock is where you are, Appeara is what this is.
+            UiKit.Text(card, "Wordmark", new Vector3(left, top - 0.022f, 0f), 0.026f, UiKit.Label, UiKit.Amber,
+                tracking: 34f, uppercase: true).text = "Appeara";
+            UiKit.Text(card, "Title", new Vector3(left, top - 0.068f, 0f), 0.05f, UiKit.Label, UiKit.Cyan,
                 tracking: 22f, uppercase: true).text = "Kestrel Drydock";
-            UiKit.Text(card, "Subtitle", new Vector3(Width / 2f - Pad, top - 0.036f, 0f), 0.022f, UiKit.Mono, UiKit.Muted,
+            UiKit.Text(card, "Subtitle", new Vector3(Width / 2f - Pad, top - 0.03f, 0f), 0.022f, UiKit.Mono, UiKit.Muted,
                 TextAlignmentOptions.TopRight, uppercase: true).text = "Vasa Reach · hive containment";
-            UiKit.Text(card, "Blurb", new Vector3(left, top - 0.14f, 0f), 0.028f, UiKit.Body, UiKit.Ink, width: Width - Pad * 2f).text =
+            UiKit.Text(card, "Blurb", new Vector3(left, top - 0.17f, 0f), 0.028f, UiKit.Body, UiKit.Ink, width: Width - Pad * 2f).text =
                 "The refinery went dark eight hours ago. The hive learns from whatever kills it, so nothing you bring will work twice. " +
                 "Talk to ARIA, fabricate something new, and hold the core.";
 
