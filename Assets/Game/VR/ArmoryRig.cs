@@ -363,4 +363,70 @@ namespace Armory
             ConfigureOrigin();
         }
     }
+
+    /// <summary>
+    /// Applies a conservative, reversible render budget once a tracked XR headset is present.
+    /// Desktop rendering keeps the project's normal PC settings.
+    /// </summary>
+    public sealed class XRPerformanceTuner : MonoBehaviour
+    {
+        public ArmoryRig Rig;
+
+        [Range(0.5f, 1f)] public float RenderScale = 0.85f;
+        [Range(0f, 1f)] public float FoveationStrength = 0.5f;
+        public float FarClip = 120f;
+
+        private readonly List<XRDisplaySubsystem> displays = new List<XRDisplaySubsystem>();
+        private bool applied;
+        private float oldEyeTextureScale;
+        private float oldLodBias;
+        private bool oldHdr;
+        private float oldFarClip;
+
+        private void Update()
+        {
+            if (!applied && Rig != null && Rig.IsXR) Apply();
+        }
+
+        private void Apply()
+        {
+            applied = true;
+            oldFarClip = Rig.Head.farClipPlane;
+            oldHdr = Rig.Head.allowHDR;
+            oldEyeTextureScale = XRSettings.eyeTextureResolutionScale;
+            oldLodBias = QualitySettings.lodBias;
+            Rig.Head.farClipPlane = FarClip;
+            Rig.Head.allowHDR = false;
+            Rig.Head.allowDynamicResolution = true;
+            XRSettings.eyeTextureResolutionScale = Mathf.Min(oldEyeTextureScale, RenderScale);
+            QualitySettings.lodBias = Mathf.Min(oldLodBias, 1.25f);
+
+            SubsystemManager.GetSubsystems(displays);
+            foreach (var display in displays)
+            {
+                if (!display.running) continue;
+                display.foveatedRenderingLevel = FoveationStrength;
+                display.foveatedRenderingFlags = XRDisplaySubsystem.FoveatedRenderingFlags.GazeAllowed;
+            }
+
+            Debug.Log($"Armory VR budget: {RenderScale:0.00} eye scale, {FarClip:0}m far clip, " +
+                      $"LOD bias {QualitySettings.lodBias:0.00}, foveation {FoveationStrength:0.00}.");
+        }
+
+        private void OnDisable()
+        {
+            if (!applied) return;
+            applied = false;
+            if (Rig != null && Rig.Head != null)
+            {
+                Rig.Head.farClipPlane = oldFarClip;
+                Rig.Head.allowHDR = oldHdr;
+            }
+            XRSettings.eyeTextureResolutionScale = oldEyeTextureScale;
+            QualitySettings.lodBias = oldLodBias;
+            foreach (var display in displays)
+                if (display != null && display.running) display.foveatedRenderingLevel = 0f;
+            displays.Clear();
+        }
+    }
 }

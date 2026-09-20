@@ -66,6 +66,10 @@ namespace Armory
             Rig = new GameObject("Armory Rig").AddComponent<ArmoryRig>();
             Rig.transform.SetParent(transform, false);
 
+            var xrPerformance = new GameObject("XR Performance Tuner").AddComponent<XRPerformanceTuner>();
+            xrPerformance.transform.SetParent(transform, false);
+            xrPerformance.Rig = Rig;
+
             // Inactive while wiring so ShipAI.Awake sees the configured settings.
             var aiObject = new GameObject("Ship AI");
             aiObject.SetActive(false);

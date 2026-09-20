@@ -36,7 +36,7 @@ namespace Armory
         private Texture blueprintTexture;
         private string lastSaid = "";
         private float aspect = -1f, nextRefresh;
-        private bool fullscreen, framed;
+        private bool fullscreen, framed, xrDetected, renderInXR;
 
         /// <summary>Built from ArmoryGame once the rig exists; the rig camera keeps the headset.</summary>
         public static SpectatorView Create(ArmoryRig rig)
@@ -124,6 +124,17 @@ namespace Armory
         private void LateUpdate()
         {
             if (Rig == null || Cam == null) return;
+            if (Rig.IsXR) xrDetected = true;
+            if (Keyboard.current != null && !Rig.TextEntryActive && Keyboard.current.f10Key.wasPressedThisFrame)
+                renderInXR = !renderInXR;
+
+            // A third full-world render is particularly expensive after the headset has already rendered two eyes.
+            // By default Unity's XR mirror supplies the monitor image. F10 restores the cinematic spectator camera
+            // for capture/demo sessions where its presentation is worth the GPU cost.
+            bool shouldRender = !xrDetected || renderInXR;
+            if (Cam.enabled != shouldRender) Cam.enabled = shouldRender;
+            if (!shouldRender) return;
+
             if (Keyboard.current != null && !Rig.TextEntryActive && Keyboard.current.f9Key.wasPressedThisFrame) fullscreen = !fullscreen;
             // On desktop the first-person view is how the player aims, so the chase cam is a corner inset until F9.
             Cam.rect = Rig.IsXR || fullscreen ? new Rect(0f, 0f, 1f, 1f) : new Rect(0.68f, 0.03f, 0.3f, 0.3f);
