@@ -32,6 +32,8 @@ namespace Armory
 
         private Hud hud;
         private WaveDirector director;
+        /// <summary>Latched so the down sequence runs once, not every frame while the shields read zero.</summary>
+        private bool playerDown;
 
         private void Awake()
         {
@@ -83,6 +85,9 @@ namespace Armory
             locomotion.transform.SetParent(transform, false);
             locomotion.Rig = Rig;
             locomotion.LookTarget = transform.position;
+
+            // Built up front but inactive; the wave director moves the run onto it for the finale.
+            BossArena.Build(transform);
 
             director = new GameObject("Wave Director").AddComponent<WaveDirector>();
             director.transform.SetParent(transform, false);
@@ -142,6 +147,18 @@ namespace Armory
             float now = Time.time;
             Vitals.Tick(Time.deltaTime, now);
             if (Rig == null) return;
+
+            // Going down used to do nothing but play a line. It now costs the wave, which is what makes the
+            // shield bar worth watching and gives the boss's attacks a consequence the player can feel.
+            if (Vitals.Down && !playerDown)
+            {
+                playerDown = true;
+                ShowBanner("YOU WENT DOWN / WAVE RESTARTING", UiKit.Alien);
+                Effects.Flash(Rig.FeetPosition + Vector3.up * 1.4f, UiKit.Alien, 3f);
+                director.OnPlayerDown();
+                return;
+            }
+            if (!Vitals.Down) playerDown = false;
 
             Vector3 feet = Rig.FeetPosition;
             foreach (var enemy in Enemy.All)

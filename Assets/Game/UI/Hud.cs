@@ -237,7 +237,12 @@ namespace Armory
                 weaponName.text = spec.Name;
                 weaponName.color = Color.Lerp(spec.Color, Color.white, 0.55f);
                 string mods = spec.Mods == Mods.None ? "" : " · " + spec.Mods.ToString().Replace(", ", " · ");
-                weaponTraits.text = $"{spec.FireMode} · {spec.Payload}{mods}";
+                // The energy draw rides on the traits line: the budget only teaches anything if the player can
+                // see what the weapon they just described actually cost them.
+                string energy = ai.LastCost > 0
+                    ? $"  <color={UiKit.Hex(ai.LastCost >= ai.Budget ? UiKit.Amber : UiKit.Go)}>{ai.LastCost}/{ai.Budget}e</color>"
+                    : "";
+                weaponTraits.text = $"{spec.FireMode} · {spec.Payload}{mods}{energy}";
             }
             if (ms != null && ms.HasPendingAnalysis)
             {

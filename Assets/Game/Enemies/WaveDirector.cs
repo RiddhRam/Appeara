@@ -107,6 +107,13 @@ namespace Armory
             CombatActive = false;
             ArmoryGame.Instance?.Vitals.Restore();
             startRequested = false;
+            // Relocate during the armory phase, not on the first spawn: the player gets to look at the deck,
+            // pick their ground and fabricate there before a fourteen-metre avatar walks onto it.
+            if (BossArena.Instance != null)
+            {
+                if (HasBoss(wave)) BossArena.Instance.Enter();
+                else BossArena.Instance.Leave();
+            }
             float earliest = Time.time + ArmoryMinimumSeconds;
             string prompt = WaveIndex == 0 ? "Say \"ready\" when you want the first wave." : "Say \"ready\" when you want them.";
             ShipAI.Instance?.SayShip($"Armory phase. Next: {wave.Name}. {wave.Hint} {prompt}", "ARMORY  ·  " + wave.Name);
@@ -128,6 +135,15 @@ namespace Armory
             InArmory = false;
             startRequested = false;
             ShipAI.Instance?.SayShip($"Wave {WaveIndex + 1}. Good luck.", $"Wave {WaveIndex + 1:00}  ·  {wave.Name}");
+        }
+
+        /// <summary>The finale is whichever wave brings the avatar, so the arena swap follows the content.</summary>
+        public static bool HasBoss(Wave wave)
+        {
+            if (wave == null || wave.Groups == null) return false;
+            foreach (var group in wave.Groups)
+                if (group != null && group.Kind == EnemyKind.Boss && group.Count > 0) return true;
+            return false;
         }
 
         private IEnumerator SpawnWave(Wave wave)
@@ -191,6 +207,18 @@ namespace Armory
         }
 
         public void OnEnemyRemoved(Enemy enemy, bool killed) { }
+
+        /// <summary>
+        /// The player's shields failed. Same consequence as a core breach: this wave restarts from the armory, so
+        /// going down costs you the wave and a re-fabricate rather than the run.
+        /// </summary>
+        public void OnPlayerDown()
+        {
+            ArmoryTelemetry.FinishWave(activeWaveTrace, "player_down");
+            activeWaveTrace = null;
+            ShipAI.Instance?.SayShip("Your shields are gone. Pulling you back to the drydock. Build something that keeps them off you.", "YOU WENT DOWN");
+            RestartWave(Mathf.Max(0, WaveIndex), 3.5f);
+        }
 
         public void OnCoreDestroyed()
         {

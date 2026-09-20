@@ -259,6 +259,7 @@ namespace Armory
                     parsed = WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(request));
                     if (OpenAI != null) parsed.ShipAILine = "Uplink failed, so I improvised: " + parsed.Name + ".";
                 }
+                ApplyBudget(parsed);
                 var assemble = trace.StartSpan("unity.assemble", "Build weapon in player hand");
                 try { Equip(parsed, announce: true, trace); }
                 finally { trace.FinishSpan(assemble); }
@@ -282,6 +283,30 @@ namespace Armory
                 Busy = false;
                 trace.Complete();
             }
+        }
+
+        /// <summary>Energy the station can spare this wave, and what the last fabricated weapon drew from it.</summary>
+        public int Budget { get; private set; } = WeaponBudget.Wave1Budget;
+        public int LastCost { get; private set; }
+
+        /// <summary>
+        /// The parser already caps raw DPS, but nothing stopped a request being fast AND huge AND homing at once.
+        /// The wave allowance makes those compete, and ARIA says the cut out loud: a player who is told "dropped
+        /// homing to fit 8 energy" learns to ask for less, where one who silently receives a worse gun than they
+        /// described just thinks the model misheard them.
+        /// </summary>
+        private void ApplyBudget(ParsedWeapon spec)
+        {
+            if (spec == null) return;
+            Budget = WeaponBudget.Budget(WaveDirector.Instance != null ? WaveDirector.Instance.WaveIndex : 0);
+            if (WeaponBudget.Trim(spec, Budget, out string report))
+            {
+                string sentence = char.ToUpperInvariant(report[0]) + report.Substring(1) + ".";
+                spec.ShipAILine = string.IsNullOrWhiteSpace(spec.ShipAILine)
+                    ? "Fabricated: " + spec.Name + ". " + sentence
+                    : spec.ShipAILine + " " + sentence;
+            }
+            LastCost = WeaponBudget.Cost(spec);
         }
 
         private void Equip(ParsedWeapon spec, bool announce, FabricationTrace trace = null)
