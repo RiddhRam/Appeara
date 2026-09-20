@@ -13,6 +13,8 @@ namespace Armory
 
         private Transform panel;
         private TextMeshPro title;
+        private HudButton startWave;
+        private Collider startWaveCollider;
         private bool shown;
 
         private void Start()
@@ -32,9 +34,13 @@ namespace Armory
             UiKit.Text(panel, "Hint", new Vector3(0f, 0.052f, -0.003f), 0.022f, UiKit.Mono, UiKit.Muted,
                 TextAlignmentOptions.Top, width: 0.68f, uppercase: true).text = "say \"ready\" · press A · or shoot this";
 
-            HudButton.Create(panel, new Vector3(0f, -0.06f, -0.004f), new Vector2(0.56f, 0.11f), "Start wave", UiKit.Go,
+            startWave = HudButton.Create(panel, new Vector3(0f, -0.06f, -0.004f), new Vector2(0.56f, 0.11f), "Start wave", UiKit.Go,
                 () => WaveDirector.Instance?.RequestWaveStart());
-            panel.gameObject.SetActive(false);
+            startWaveCollider = startWave.GetComponent<Collider>();
+            startWave.Enabled = false;
+            if (startWaveCollider != null) startWaveCollider.enabled = false;
+            startWave.SetHovered(false);
+            panel.gameObject.SetActive(true);
         }
 
         private void LateUpdate()
@@ -42,13 +48,22 @@ namespace Armory
             var director = WaveDirector.Instance;
             if (director == null || Rig == null) return;
 
-            bool want = director.InArmory && !MissionDeck.Open;
+            // Keep the prompt readable between waves, but remove its only collider unless the wave can start.
+            // This prevents the inactive HUD card from catching the player's aim or shots.
+            bool want = !MissionDeck.Open;
+            bool canStartWave = director.InArmory && want;
             if (want != shown)
             {
                 shown = want;
                 panel.gameObject.SetActive(want);
             }
             if (!want) return;
+            if (startWave.Enabled != canStartWave)
+            {
+                startWave.Enabled = canStartWave;
+                if (startWaveCollider != null) startWaveCollider.enabled = canStartWave;
+                startWave.SetHovered(false);
+            }
             if (director.Current != null) title.text = "Next: " + director.Current.Name;
         }
     }
