@@ -9,6 +9,8 @@ namespace Armory
     public static class EnemyFactory
     {
         private static readonly ProfilerMarker SpawnMarker = new ProfilerMarker("Armory.Enemy.Spawn");
+        private const float SwarmSpeedMultiplier = 0.5f;
+        private const float OtherEnemySpeedMultiplier = 0.66f;
 
         public static Enemy Spawn(EnemyKind kind, Vector3 position, Vector3 target, MothershipSpawnTrace spawnTrace = null)
         {
@@ -21,28 +23,28 @@ namespace Armory
             switch (kind)
             {
                 case EnemyKind.Swarm:
-                    Stats(enemy, hp: 8f, speed: 4.2f, core: 2f, radius: 0.3f, color: new Color(1f, 0.25f, 0.2f));
+                    Stats(enemy, kind, hp: 8f, speed: 4.2f, core: 2f, radius: 0.3f, color: new Color(1f, 0.25f, 0.2f));
                     Body(go, enemy, PrimitiveType.Sphere, new Vector3(0.6f, 0.6f, 0.6f), 0.35f);
                     break;
                 case EnemyKind.Armored:
-                    Stats(enemy, hp: 160f, speed: 1.6f, core: 15f, radius: 1f, color: new Color(0.55f, 0.55f, 0.6f));
+                    Stats(enemy, kind, hp: 160f, speed: 1.6f, core: 15f, radius: 1f, color: new Color(0.55f, 0.55f, 0.6f));
                     Body(go, enemy, PrimitiveType.Cube, new Vector3(1.8f, 2.2f, 1.4f), 1.1f);
                     Mats.Shape(PrimitiveType.Cube, go.transform, new Vector3(0f, 1.5f, 0.75f), new Vector3(1.5f, 0.9f, 0.2f), Mats.Lit(new Color(0.35f, 0.35f, 0.4f)), name: "Plate");
                     break;
                 case EnemyKind.Fast:
-                    Stats(enemy, hp: 20f, speed: 7f, core: 5f, radius: 0.4f, color: new Color(1f, 0.9f, 0.2f));
+                    Stats(enemy, kind, hp: 20f, speed: 7f, core: 5f, radius: 0.4f, color: new Color(1f, 0.9f, 0.2f));
                     Body(go, enemy, PrimitiveType.Capsule, new Vector3(0.6f, 0.8f, 0.6f), 0.8f);
                     break;
                 case EnemyKind.Shielded:
-                    Stats(enemy, hp: 40f, speed: 2.5f, core: 8f, radius: 0.6f, color: new Color(0.3f, 0.5f, 1f));
+                    Stats(enemy, kind, hp: 40f, speed: 2.5f, core: 8f, radius: 0.6f, color: new Color(0.3f, 0.5f, 1f));
                     enemy.ShieldHealth = 80f;
                     Body(go, enemy, PrimitiveType.Capsule, new Vector3(0.9f, 1f, 0.9f), 1f);
                     break;
                 case EnemyKind.Boss:
-                    Stats(enemy, hp: 2400f, speed: 1.1f, core: 60f, radius: 2.5f, color: new Color(0.7f, 0.2f, 1f));
+                    Stats(enemy, kind, hp: 2400f, speed: 1.1f, core: 60f, radius: 2.5f, color: new Color(0.7f, 0.2f, 1f));
                     break;
                 default:
-                    Stats(enemy, hp: 30f, speed: 3f, core: 5f, radius: 0.5f, color: new Color(0.3f, 0.95f, 0.4f));
+                    Stats(enemy, kind, hp: 30f, speed: 3f, core: 5f, radius: 0.5f, color: new Color(0.3f, 0.95f, 0.4f));
                     Body(go, enemy, PrimitiveType.Capsule, new Vector3(0.8f, 0.9f, 0.8f), 0.9f);
                     break;
             }
@@ -70,10 +72,10 @@ namespace Armory
             return enemy;
         }
 
-        private static void Stats(Enemy enemy, float hp, float speed, float core, float radius, Color color)
+        private static void Stats(Enemy enemy, EnemyKind kind, float hp, float speed, float core, float radius, Color color)
         {
             enemy.MaxHealth = enemy.Health = hp;
-            enemy.Speed = speed;
+            enemy.Speed = speed * (kind == EnemyKind.Swarm ? SwarmSpeedMultiplier : OtherEnemySpeedMultiplier);
             enemy.CoreDamage = core;
             enemy.Radius = radius;
             enemy.BaseColor = color;
