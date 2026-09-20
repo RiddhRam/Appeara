@@ -146,31 +146,7 @@ namespace Armory
             if (Rig.MenuPressed) Toggle();
             if (!root.gameObject.activeSelf) return;
 
-            Vector3 origin = Rig.Aim.position;
-            Vector3 direction = Rig.Aim.forward;
-            pointer.enabled = true;
-            Vector3 end = origin + direction * 4f;
-
-            HudButton target = null;
-            if (Physics.Raycast(origin, direction, out var hit, 6f, ~0, QueryTriggerInteraction.Ignore))
-            {
-                target = hit.collider.GetComponent<HudButton>();
-                if (target != null) end = hit.point;
-            }
-            pointer.SetPosition(0, origin);
-            pointer.SetPosition(1, end);
-            pointer.widthMultiplier = target != null ? 0.01f : 0.005f;
-
-            if (target != hovered)
-            {
-                if (hovered != null) hovered.SetHovered(false);
-                hovered = target;
-                if (hovered != null) hovered.SetHovered(true);
-            }
-
-            bool pressed = Rig.FireHeld;
-            if (pressed && !triggerHeld && hovered != null) hovered.Press();
-            triggerHeld = pressed;
+            // UiPointer does the aiming and pressing for every world-space button.
         }
     }
 }

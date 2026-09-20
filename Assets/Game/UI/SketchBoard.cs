@@ -76,7 +76,7 @@ namespace Armory
 
         private void Update()
         {
-            if (Rig == null || !Visible || MissionDeck.Open) { lastPixel = null; return; }
+            if (Rig == null || !Visible || MissionDeck.Open || UiPointer.OverButton) { lastPixel = null; return; }
 
             if (Rig.DropPressed) Clear();
 

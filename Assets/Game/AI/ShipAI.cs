@@ -134,7 +134,7 @@ namespace Armory
             if (Current != null)
             {
                 if (DebugAutoFire) AutoFire();
-                else Current.Tick(Rig.FireHeld && !MissionDeck.Open, Rig.Aim);
+                else Current.Tick(Rig.FireHeld && !MissionDeck.Open && !UiPointer.OverButton, Rig.Aim);
             }
 
             if (Mic != null && Mic.Recording) Mic.Tick();

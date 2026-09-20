@@ -90,6 +90,14 @@ namespace Armory
             var sketch = new GameObject("Sketch Board").AddComponent<SketchBoard>();
             sketch.transform.SetParent(transform, false);
             sketch.Rig = Rig;
+
+            var pointer = new GameObject("UI Pointer").AddComponent<UiPointer>();
+            pointer.transform.SetParent(transform, false);
+            pointer.Rig = Rig;
+
+            var prompt = new GameObject("Armory Prompt").AddComponent<ArmoryPrompt>();
+            prompt.transform.SetParent(transform, false);
+            prompt.Rig = Rig;
         }
 
         private void DisableOtherCameras()
