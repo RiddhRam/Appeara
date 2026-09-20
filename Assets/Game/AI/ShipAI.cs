@@ -52,7 +52,6 @@ namespace Armory
             "A machine gun",
         };
 
-        private const string DefaultWeapon = "standard issue machine gun";
         private AudioSource shipVoice;
         private AudioSource motherVoice;
         private AudioSource fabHum;
@@ -155,7 +154,6 @@ namespace Armory
             else if (!Rig.TalkHeld && Mic != null && Mic.Recording) EndRecording();
 
             if (Rig.CannedPromptPressed >= 0 && !Busy) _ = Fabricate(CannedPrompts[Rig.CannedPromptPressed]);
-            if (Rig.DropPressed && !Busy) Equip(WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(DefaultWeapon)), announce: false);
             if (Rig.TypePressed && !Busy) { textEntryOpen = true; typed = ""; }
             if (Rig.ReadyPressed) WaveDirector.Instance?.RequestWaveStart();
 

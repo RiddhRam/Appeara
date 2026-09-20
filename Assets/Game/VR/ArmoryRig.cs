@@ -11,8 +11,8 @@ namespace Armory
     /// <summary>
     /// Quest Link rig (plain OpenXR + Input System, same pattern as the proven Inkborn QuestLinkRig) with a
     /// desktop fallback so the game is testable without the headset.
-    /// XR: right trigger fire · left grip talk · right B drop weapon · left X recenter · left stick teleport · right stick snap turn.
-    /// Desktop: LMB fire · RMB look · V talk · T type · 1-5 canned prompts · Q/E teleport · Backspace drop.
+    /// XR: right trigger fire · left grip talk · left X recenter · right A starts the wave · right stick snap turn.
+    /// Desktop: LMB fire · RMB look · V talk · T type · 1-5 canned prompts · Enter starts the wave.
     /// </summary>
     public sealed class ArmoryRig : MonoBehaviour
     {
@@ -28,7 +28,6 @@ namespace Armory
         public bool IsXR { get; private set; }
         public bool FireHeld { get; private set; }
         public bool TalkHeld { get; private set; }
-        public bool DropPressed { get; private set; }
         public bool RecenterPressed { get; private set; }
         /// <summary>Right A button (or Enter on desktop): starts the wave from the armory phase.</summary>
         public bool ReadyPressed { get; private set; }
@@ -66,10 +65,9 @@ namespace Armory
         private float desktopYaw;
         private float desktopPitch;
         private bool recenterHeld;
-        private bool dropHeld;
         private bool readyHeld;
         private bool menuHeld;
-        private InputAction trigger, grip, drop, recenter, ready, menu, sprint, leftStick, rightStick;
+        private InputAction trigger, grip, recenter, ready, menu, sprint, leftStick, rightStick;
 
         private static readonly InputFeatureUsage<Vector3> PointerPosition = new InputFeatureUsage<Vector3>("PointerPosition");
         private static readonly InputFeatureUsage<Quaternion> PointerRotation = new InputFeatureUsage<Quaternion>("PointerRotation");
@@ -99,7 +97,6 @@ namespace Armory
 
             trigger = Button("<XRController>{RightHand}/triggerPressed");
             grip = Button("<XRController>{LeftHand}/gripPressed");
-            drop = Button("<XRController>{RightHand}/secondaryButton");
             recenter = Button("<XRController>{LeftHand}/primaryButton");
             ready = Button("<XRController>{RightHand}/primaryButton");
             menu = Button("<XRController>{LeftHand}/secondaryButton");
@@ -166,7 +163,7 @@ namespace Armory
 
         private void OnDestroy()
         {
-            foreach (var action in new[] { trigger, grip, drop, recenter, ready, menu, sprint, leftStick, rightStick }) action?.Dispose();
+            foreach (var action in new[] { trigger, grip, recenter, ready, menu, sprint, leftStick, rightStick }) action?.Dispose();
         }
 
         private IEnumerator StartXR()
@@ -254,12 +251,11 @@ namespace Armory
             TypePressed = false;
 
             bool readyNow = false, menuNow = false;
-            bool dropNow, recenterNow;
+            bool recenterNow;
             if (IsXR)
             {
                 FireHeld = rightTracked && trigger.IsPressed();
                 TalkHeld = leftTracked && grip.IsPressed();
-                dropNow = drop.IsPressed();
                 recenterNow = recenter.IsPressed();
                 LeftStick = leftStick.ReadValue<Vector2>();
                 RightStick = rightStick.ReadValue<Vector2>();
@@ -270,7 +266,7 @@ namespace Armory
             }
             else
             {
-                UpdateDesktop(out dropNow, out recenterNow);
+                UpdateDesktop(out recenterNow);
             }
 
             if (!IsXR && Keyboard.current != null && !TextEntryActive)
@@ -282,16 +278,14 @@ namespace Armory
             menuHeld = menuNow;
             ReadyPressed = readyNow && !readyHeld;
             readyHeld = readyNow;
-            DropPressed = dropNow && !dropHeld;
-            dropHeld = dropNow;
             RecenterPressed = recenterNow && !recenterHeld;
             recenterHeld = recenterNow;
             if (RecenterPressed) Recenter();
         }
 
-        private void UpdateDesktop(out bool dropNow, out bool recenterNow)
+        private void UpdateDesktop(out bool recenterNow)
         {
-            dropNow = recenterNow = false;
+            recenterNow = false;
             var mouse = Mouse.current;
             var keyboard = Keyboard.current;
             if (mouse == null || keyboard == null) return;
@@ -326,7 +320,6 @@ namespace Armory
             }
             FireHeld = mouse.leftButton.isPressed;
             TalkHeld = keyboard.vKey.isPressed;
-            dropNow = keyboard.backspaceKey.isPressed;
             TypePressed = keyboard.tKey.wasPressedThisFrame;
             if (keyboard.qKey.wasPressedThisFrame) DesktopTeleportStep = -1;
             if (keyboard.eKey.wasPressedThisFrame) DesktopTeleportStep = 1;
