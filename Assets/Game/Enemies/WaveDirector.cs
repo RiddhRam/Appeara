@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace Armory
 {
-    /// <summary>Scripted demo waves (≈5-7 min): grunts → swarm → armored → fast+shielded → adaptive boss.</summary>
+    /// <summary>Scripted demo waves: grunts → swarm → armored → two fast+shielded finales.</summary>
     public sealed class WaveDirector : MonoBehaviour
     {
         public static WaveDirector Instance { get; private set; }
@@ -46,7 +46,7 @@ namespace Armory
             new Wave { Name = "The Swarm", Hint = "Dozens of tiny swarmers. Area damage shreds them.", Groups = new[] { new Group(EnemyKind.Swarm, 15, 0.18f), new Group(EnemyKind.Grunt, 4, 2f) } },
             new Wave { Name = "Heavy Plating", Hint = "Armored brutes shrug off bullets. Pierce or blow them up.", Groups = new[] { new Group(EnemyKind.Armored, 6, 2.5f), new Group(EnemyKind.Grunt, 8, 1.2f) } },
             new Wave { Name = "Blitz", Hint = "Fast runners and shielded escorts. Homing, cryo, and electricity.", Groups = new[] { new Group(EnemyKind.Fast, 14, 0.8f), new Group(EnemyKind.Shielded, 6, 2f) } },
-            new Wave { Name = "The Mothership Avatar", Hint = "It adapts to whatever you use. Keep inventing.", Groups = new[] { new Group(EnemyKind.Boss, 1, 0f), new Group(EnemyKind.Swarm, 20, 1.5f) } },
+            new Wave { Name = "Blitz", Hint = "Fast runners and shielded escorts. Homing, cryo, and electricity.", Groups = new[] { new Group(EnemyKind.Fast, 14, 0.8f), new Group(EnemyKind.Shielded, 6, 2f) } },
         };
 
         private Coroutine flow;
@@ -94,7 +94,7 @@ namespace Armory
                 State = "Wave cleared. Return to the armory.";
             }
             State = "VICTORY. The station holds.";
-            ShipAI.Instance?.SayShip("The mothership is retreating. Not bad for a pile of improvised weapons.", "VICTORY");
+            ShipAI.Instance?.SayShip("The remaining attackers are retreating. Not bad for a pile of improvised weapons.", "VICTORY");
         }
 
         /// <summary>
@@ -240,6 +240,15 @@ namespace Armory
             foreach (var enemy in new List<Enemy>(Enemy.All)) enemy.Die(false);
             StationCore.Instance?.Repair();
             flow = StartCoroutine(Run(Mathf.Clamp(index, 0, Waves.Count - 1), delay));
+        }
+
+        /// <summary>Editor-only boss helpers use this instead of assuming a fifth wave exists.</summary>
+        public bool RestartBossWave(float delay)
+        {
+            int index = Waves.FindIndex(HasBoss);
+            if (index < 0) return false;
+            RestartWave(index, delay);
+            return true;
         }
 
         public void SkipWave() => RestartWave(WaveIndex + 1, 1f);

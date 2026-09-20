@@ -59,7 +59,7 @@ namespace Armory.Editor
                 else if (command.StartsWith("fab ")) { _ = ShipAI.Instance.Fabricate(command.Substring(4)); Write("fabricating"); }
                 else if (command == "autofire") { ShipAI.Instance.DebugAutoFire = !ShipAI.Instance.DebugAutoFire; Write("autofire " + ShipAI.Instance.DebugAutoFire); }
                 else if (command == "skip") { WaveDirector.Instance.SkipWave(); Write("skipped"); }
-                else if (command == "boss") { WaveDirector.Instance.RestartWave(4, 1f); Write("starting Hive Avatar"); }
+                else if (command == "boss") Write(WaveDirector.Instance.RestartBossWave(1f) ? "starting Hive Avatar" : "boss wave is not configured");
                 else if (command == "state") Write(GameState());
                 else if (command == "miclevels") { ShipAI.Instance.ProbeMics(); Write("probing mics for ~2s per device; see console"); }
                 else if (command == "reset") { Mothership.Instance.Clear(); Projectile.SurfaceHits.Clear(); Projectile.EnemyHits = 0; WaveDirector.Instance.RestartWave(0, 1f); Write("reset"); }

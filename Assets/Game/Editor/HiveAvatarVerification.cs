@@ -22,7 +22,12 @@ namespace Armory.Editor
             if (!EditorApplication.isPlaying || WaveDirector.Instance == null) return;
             File.WriteAllText("Temp/hive-verification.txt", "RUNNING\n");
             Time.timeScale = 1f;
-            WaveDirector.Instance.RestartWave(4, 0f);
+            if (!WaveDirector.Instance.RestartBossWave(0f))
+            {
+                File.AppendAllText("Temp/hive-verification.txt", "SKIPPED boss wave is not configured\n");
+                Debug.LogWarning("The Hive Avatar wave is not configured in this run.");
+                return;
+            }
             stage = 0;
             deadline = EditorApplication.timeSinceStartup + 25f;
         }
@@ -77,7 +82,8 @@ namespace Armory.Editor
                 {
                     Require(UnityEngine.Object.FindObjectsByType<HiveThreat>(FindObjectsSortMode.None).Length == 0, "No shootable threats survive the defeated encounter");
                     Time.timeScale = 1f;
-                    WaveDirector.Instance.RestartWave(4, 0f);
+                    if (!WaveDirector.Instance.RestartBossWave(0f))
+                        throw new InvalidOperationException("Boss wave was removed during verification.");
                     stage = 2;
                     deadline = EditorApplication.timeSinceStartup + 25f;
                 }

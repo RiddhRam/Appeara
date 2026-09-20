@@ -38,7 +38,8 @@ namespace Armory.Editor
         public static void JumpToBoss()
         {
             if (!EditorApplication.isPlaying || WaveDirector.Instance == null) return;
-            WaveDirector.Instance.RestartWave(4, 1f);
+            if (!WaveDirector.Instance.RestartBossWave(1f))
+                Debug.LogWarning("The Hive Avatar wave is not configured in this run.");
         }
     }
 }
