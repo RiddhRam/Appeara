@@ -6,7 +6,11 @@ using System.Collections.Generic;
 
 namespace Armory
 {
-    /// <summary>Builds placeholder aliens. Swap visuals here when real models are ready; stats live here too.</summary>
+    /// <summary>
+    /// Builds aliens: stats, the primitive that carries the hitbox, and the authored model on top of it.
+    /// The primitives are still built for every kind even when art exists, because the collider, Radius and the
+    /// health bar offsets are all derived from them - the model is decoration hung over that gameplay shape.
+    /// </summary>
     public static class EnemyFactory
     {
         private static readonly ProfilerMarker SpawnMarker = new ProfilerMarker("Armory.Enemy.Spawn");
@@ -72,6 +76,12 @@ namespace Armory
 
             enemy.enabled = true;
             go.SetActive(true);
+            // After the object is live and before Init: the binder settles the animator and bakes the skinned
+            // pose to measure height, neither of which works on an inactive GameObject, and Init's tint pass
+            // has to see the model's renderers. The boss is skipped because HiveAvatar loads and fits its own
+            // model; a second one would stand inside it. A recycled body still carries the model it was built
+            // with, and Attach hands that one back rather than stacking another.
+            if (kind != EnemyKind.Boss) enemy.Visual = EnemyVisualBinder.Attach(go, kind);
             enemy.Init(kind, target);
             if (kind == EnemyKind.Boss)
             {

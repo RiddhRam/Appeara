@@ -26,8 +26,28 @@ namespace Armory
         public HiveAvatar Avatar;
         /// <summary>Set only for standard factory enemies; bosses and scripted threats retain their bespoke lifetime.</summary>
         public bool Poolable { get; internal set; }
+        /// <summary>The authored model, when this kind has one; null means the primitive placeholder is on show.</summary>
+        public EnemyVisualBinder Visual;
 
-        private Renderer[] renderers;
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+        /// <summary>Matches the emission the placeholder shapes are built with, so a tint keeps their glow.</summary>
+        private const float PlaceholderEmission = 0.25f;
+        private static MaterialPropertyBlock tintBlock;
+        /// <summary>
+        /// Death effect keys by kind. Spelled out rather than built from the enum because "Death_" + Kind
+        /// allocates a string and boxes the enum on every kill, and a wave-two wipe is 45 of them at once.
+        /// The Boss is deliberately absent: its death sequence is the avatar's, and a burst at the aim point
+        /// would land in the middle of it.
+        /// </summary>
+        private static readonly string[] DeathEffectKeys =
+            { "Death_Grunt", "Death_Swarm", "Death_Armored", "Death_Fast", "Death_Shielded" };
+
+        private Renderer[] placeholderRenderers;
+        private Renderer[] modelRenderers;
+        private Color appliedTint;
+        private bool appliedResting;
+        private bool tintApplied;
         private HealthBar healthBar;
         private GameObject shieldBubble;
         private GameObject defensiveShell;
@@ -60,7 +80,8 @@ namespace Armory
         {
             Kind = kind;
             Target = target;
-            renderers = GetComponentsInChildren<Renderer>();
+            if (Visual == null) Visual = GetComponent<EnemyVisualBinder>();
+            CollectTintTargets();
             baseMaxHealth = MaxHealth;
             baseSpeed = Speed;
             baseShieldCapacity = ShieldHealth;
@@ -85,6 +106,9 @@ namespace Armory
             lateral = Vector3.zero;
             counterArmor = counterShield = counterTeleport = false;
             defenseSignature = null;
+            // Drop the tint latch: the last occupant may have died mid-flash, and the guard in SetTint would
+            // otherwise decide the property block it left behind is already correct.
+            tintApplied = false;
             if (healthBar != null) { healthBar.gameObject.SetActive(false); Destroy(healthBar.gameObject); healthBar = null; }
             if (shieldBubble != null) { shieldBubble.SetActive(false); Destroy(shieldBubble); shieldBubble = null; }
             if (defensiveShell != null) { defensiveShell.SetActive(false); Destroy(defensiveShell); defensiveShell = null; }
@@ -124,7 +148,7 @@ namespace Armory
             }
             if (teleport && !counterTeleport) nextTeleport = Time.time + Random.Range(1.5f, 3f);
             counterTeleport = teleport;
-            SetTint(RestingColor(ms));
+            SetTint(RestingColor(ms), resting: true);
         }
 
         private GameObject CreateDefenseShell(Mothership ms, bool armor, bool reflect)
@@ -182,6 +206,8 @@ namespace Armory
             Vector3 forward = toTarget / distance;
             Vector3 side = Vector3.Cross(Vector3.up, forward);
             float speed = Speed * Status.SpeedMultiplier(Time.time);
+            // These aliens walk at the core from spawn to death, so the walk cycle is on unless a stun stops them.
+            if (Visual != null) Visual.SetMoving(speed > 0.01f);
             Vector3 velocity = forward * speed;
             if (Kind == EnemyKind.Fast) velocity += side * (Mathf.Sin(Time.time * 3f + zigPhase) * speed * 0.8f);
             if (Kind == EnemyKind.Swarm) velocity += side * (Mathf.Sin(Time.time * 5f + zigPhase) * 1.5f);
@@ -214,7 +240,11 @@ namespace Armory
             }
             // Tint shows the active debuff (orange burning, blue chilled, yellow stunned) once the hit flash ends.
             if (flashUntil > 0f && Time.time > flashUntil) flashUntil = 0f;
-            if (flashUntil <= 0f) SetTint(Status.Tint(Time.time) ?? RestingColor(ms));
+            if (flashUntil <= 0f)
+            {
+                var debuff = Status.Tint(Time.time);
+                SetTint(debuff ?? RestingColor(ms), resting: !debuff.HasValue);
+            }
         }
 
         private Vector3 SeparationFrom(List<Enemy> others)
@@ -324,15 +354,75 @@ namespace Armory
         private void Flash()
         {
             if (flashUntil > Time.time + 0.2f) return;
-            SetTint(Color.white);
+            SetTint(Color.white, resting: false);
             flashUntil = Time.time + 0.06f;
         }
 
-        private void SetTint(Color color)
+        /// <summary>
+        /// Splits the renderers once at spawn so the per-frame tint never walks the hierarchy. The shield bubble
+        /// and the reflective sheen are counter visuals with their own colour and are left out, as before.
+        /// </summary>
+        private void CollectTintTargets()
         {
-            if (renderers == null) return;
-            foreach (var r in renderers)
-                if (r != null && r.gameObject != shieldBubble && r.name != "Reflective Sheen") r.sharedMaterial = Mats.Lit(color, 0.25f);
+            var all = GetComponentsInChildren<Renderer>();
+            var placeholders = new List<Renderer>(all.Length);
+            var model = new List<Renderer>();
+            Transform art = Visual != null ? Visual.Model : null;
+            foreach (var r in all)
+            {
+                if (r == null || r.name == "Reflective Sheen") continue;
+                if (art != null && r.transform.IsChildOf(art)) model.Add(r);
+                else placeholders.Add(r);
+            }
+            placeholderRenderers = placeholders.ToArray();
+            modelRenderers = model.ToArray();
+            tintApplied = false;
+        }
+
+        /// <summary>
+        /// Hit flash, status colour and resting colour all land here. It goes through a property block rather
+        /// than a new material because assigning sharedMaterial threw the authored monster material away - texture,
+        /// normal map and smoothness with it - and mutated that shared asset for every other alien of the kind.
+        /// The authored model has its own colours, so at rest it gets no override at all and only wears a tint
+        /// while something is actually happening to it; the primitives still take the resting colour outright,
+        /// because a flat capsule is nothing but its tint.
+        /// </summary>
+        private void SetTint(Color color, bool resting)
+        {
+            if (tintApplied && appliedResting == resting && appliedTint == color) return;
+            tintApplied = true;
+            appliedTint = color;
+            appliedResting = resting;
+            if (tintBlock == null) tintBlock = new MaterialPropertyBlock();
+            if (placeholderRenderers != null)
+                foreach (var r in placeholderRenderers)
+                {
+                    if (r == null || r.gameObject == shieldBubble) continue;
+                    r.GetPropertyBlock(tintBlock);
+                    tintBlock.SetColor(BaseColorId, color);
+                    tintBlock.SetColor(EmissionColorId, color * PlaceholderEmission);
+                    r.SetPropertyBlock(tintBlock);
+                }
+            if (modelRenderers == null) return;
+            foreach (var r in modelRenderers)
+            {
+                if (r == null) continue;
+                if (resting)
+                {
+                    r.SetPropertyBlock(null);
+                    continue;
+                }
+                r.GetPropertyBlock(tintBlock);
+                tintBlock.SetColor(BaseColorId, color);
+                r.SetPropertyBlock(tintBlock);
+            }
+        }
+
+        /// <summary>The authored death burst for a kind, or null when that kind stages its own death.</summary>
+        public static string DeathEffectKey(EnemyKind kind)
+        {
+            int index = (int)kind;
+            return index >= 0 && index < DeathEffectKeys.Length ? DeathEffectKeys[index] : null;
         }
 
         public void Die(bool killed)
@@ -344,13 +434,22 @@ namespace Armory
             if (killed)
             {
                 Effects.Burst(Center, BaseColor, Radius * 2f);
+                // The authored burst on top of the procedural one; pooled, and silent when the art is missing.
+                ArtVfx.Play(DeathEffectKey(Kind), Center, Mathf.Max(0.75f, Radius * 2f));
                 ProceduralSfx.PlayAt(ProceduralSfx.Hit, Center, 0.8f);
             }
             WaveDirector.Instance?.OnEnemyRemoved(this, killed);
+            // A pooled enemy keeps its authored model. Releasing it here would park a body whose model is gone
+            // and whose placeholder renderers are still hidden, so it would come back out of the pool invisible;
+            // re-instantiating a skinned mesh per spawn is also most of what the pool exists to avoid.
             if (EnemyFactory.ReturnToPool(this)) return;
+            // Only an enemy that is actually going away releases the model, and it goes now rather than with the
+            // root, which the avatar holds open for its death animation.
+            if (Visual != null) Visual.Release();
             enabled = false;
             All.Remove(this);
-            Destroy(gameObject, Avatar != null && killed ? 3.5f : 0f);
+            // The boss owns its own collapse: destroying it on a hardcoded 3.5s cut the 4.5s death clip off mid-fall.
+            Destroy(gameObject, Avatar != null && killed ? HiveAvatar.DeathSequenceSeconds : 0f);
         }
 
         public static Enemy Nearest(Vector3 point, float maxDistance, Enemy exclude = null, ICollection<Enemy> excludeSet = null)
