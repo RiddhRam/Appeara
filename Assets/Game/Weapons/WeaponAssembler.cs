@@ -33,6 +33,34 @@ namespace Armory
             return weapon;
         }
 
+        /// <summary>
+        /// Replaces the blocky placeholder parts with the AI's own art: an alpha-cut cutout of the transparent
+        /// render, stood up in the weapon's forward plane so the silhouette in your hand is the generated design.
+        /// </summary>
+        public static void ApplyGeneratedArt(Weapon weapon, Texture2D art)
+        {
+            if (weapon == null || art == null) return;
+            var parts = weapon.transform.Find("Parts");
+            if (parts != null) parts.gameObject.SetActive(false);
+
+            var shader = Shader.Find("Armory/WeaponCutout");
+            var material = shader != null ? new Material(shader) : Mats.Glow(Color.white);
+            material.mainTexture = art;
+            if (shader != null) material.SetColor("_Rim", weapon.Spec != null ? weapon.Spec.Color * 1.4f : Color.cyan);
+
+            const float length = 0.46f;
+            float aspect = art.height / (float)Mathf.Max(1, art.width);
+            var cutout = Mats.Shape(PrimitiveType.Quad, weapon.transform, new Vector3(0f, 0.02f, length * 0.28f),
+                new Vector3(length, length * aspect, 1f), material, name: "Generated Art");
+            // Turned side-on: the art's left-to-right axis becomes the weapon's forward axis.
+            cutout.transform.localRotation = Quaternion.Euler(0f, 90f, 0f);
+
+            var muzzle = new GameObject("Art Muzzle").transform;
+            muzzle.SetParent(weapon.transform, false);
+            muzzle.localPosition = new Vector3(0f, 0.02f, length * 0.78f);
+            weapon.Muzzle = muzzle;
+        }
+
         private static float BuildBody(int variant, Transform parent, Material dark, Material accent)
         {
             switch (variant)

@@ -26,6 +26,8 @@ namespace Armory.AI
         public bool GenerateWeaponSfx = true;
         [Tooltip("AI-generated blueprint hologram per weapon. gpt-image-2 ≈ 20 s (best), gpt-image-1-mini ≈ 8 s.")]
         public bool GenerateBlueprints = true;
+        [Tooltip("Use the AI's own transparent render as the held weapon instead of the modular placeholder parts.")]
+        public bool GenerateWeaponArt = true;
         public string ImageModel = "gpt-image-2";
         public string ImageQuality = "low";
         public bool Speak = true;

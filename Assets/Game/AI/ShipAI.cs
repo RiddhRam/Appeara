@@ -297,6 +297,36 @@ namespace Armory
                 trace?.AddAsyncWork();
                 _ = LoadBlueprint(spec, trace);
             }
+            if (OpenAI != null && Settings.GenerateWeaponArt)
+            {
+                trace?.AddAsyncWork();
+                _ = LoadWeaponArt(Current, spec, trace);
+            }
+        }
+
+        /// <summary>Generated art becomes the held weapon once it lands; the modular parts cover the wait.</summary>
+        private async Awaitable LoadWeaponArt(Weapon weapon, ParsedWeapon spec, FabricationTrace trace)
+        {
+            try
+            {
+                string dir = System.IO.Path.Combine(Application.temporaryCachePath, "armory-weapon-art");
+                System.IO.Directory.CreateDirectory(dir);
+                string path = System.IO.Path.Combine(dir, Hash(Settings.ImageModel + "art" + spec.Name) + ".png");
+                byte[] png = System.IO.File.Exists(path) ? System.IO.File.ReadAllBytes(path) : null;
+                if (png == null)
+                {
+                    png = await OpenAI.GenerateWeaponArt(spec.Name, ColorName(spec.Color), Flavour(spec.Payload), trace);
+                    if (png != null) System.IO.File.WriteAllBytes(path, png);
+                }
+                // A newer weapon may have replaced this one while the art generated.
+                if (png == null || weapon == null || Current != weapon) return;
+                var texture = new Texture2D(2, 2, TextureFormat.RGBA32, true);
+                texture.LoadImage(png);
+                WeaponAssembler.ApplyGeneratedArt(weapon, texture);
+                ProceduralSfx.PlayAt(ProceduralSfx.Fabricate, Rig.Aim.position, 0.5f);
+            }
+            catch (System.Exception error) { Debug.LogWarning("Weapon art failed: " + error.Message); }
+            finally { trace?.CompleteAsyncWork(); }
         }
 
         /// <summary>AI concept-art blueprint for the new weapon, cached on disk by name so demo repeats are instant.</summary>

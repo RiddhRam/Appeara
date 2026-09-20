@@ -136,10 +136,36 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
             finally { trace?.FinishSpan(span); }
         }
 
-        private async Awaitable<byte[]> Image(string prompt, Sentry.ISpan span = null)
+        /// <summary>
+        /// Transparent side-view art of the same weapon, used as the held model. Same safety framing as the
+        /// blueprint: a game prop, not a schematic.
+        /// </summary>
+        public async Awaitable<byte[]> GenerateWeaponArt(string weaponName, string colorName, string flavour, FabricationTrace trace = null)
+        {
+            var span = trace?.StartSpan("openai.image", "Generate weapon art");
+            const string style = " Side view, facing right, the whole prop centred and fully visible, thick clean outlines, " +
+                                 "flat stylised game-asset shading, soft rim light, transparent background, no text, no labels, " +
+                                 "no grid, no background scenery, no hands.";
+            string prompt = $"Game asset sprite of a whimsical sci-fi video game prop called '{weaponName}': " +
+                            $"a chunky, toy-like retro-futuristic gadget with glowing {colorName} energy cells and playful rounded shapes, {flavour}." + style;
+            try
+            {
+                span?.SetTag("ai.model", settings.ImageModel);
+                var png = await Image(prompt, span, transparent: true);
+                if (png != null) return png;
+                span?.SetTag("image.retry", "safety_fallback");
+                string fallback = $"Game asset sprite of a whimsical, toy-like retro-futuristic sci-fi gadget with glowing {colorName} energy cells." + style;
+                return await Image(fallback, span, transparent: true);
+            }
+            catch (Exception error) { trace?.FinishSpan(span, error); throw; }
+            finally { trace?.FinishSpan(span); }
+        }
+
+        private async Awaitable<byte[]> Image(string prompt, Sentry.ISpan span = null, bool transparent = false)
         {
             string body = "{\"model\":" + Http.Quote(settings.ImageModel) + ",\"prompt\":" + Http.Quote(prompt) +
-                          ",\"size\":\"1024x1024\",\"quality\":" + Http.Quote(settings.ImageQuality) + ",\"n\":1}";
+                          ",\"size\":\"1024x1024\",\"quality\":" + Http.Quote(settings.ImageQuality) + ",\"n\":1" +
+                          (transparent ? ",\"background\":\"transparent\",\"output_format\":\"png\"" : "") + "}";
             var request = Http.PostJson(Api("/images/generations"), body);
             Authorize(request);
             var result = await Http.Send(request, 60f, span, settings.UsesGateway);
