@@ -102,9 +102,6 @@ namespace Armory
             var prompt = new GameObject("Armory Prompt").AddComponent<ArmoryPrompt>();
             prompt.transform.SetParent(transform, false);
             prompt.Rig = Rig;
-
-            // What the judges watch: a clean third-person render on the monitor while the rig drives the headset.
-            SpectatorView.Create(Rig);
         }
 
         private void DisableOtherCameras()

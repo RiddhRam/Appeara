@@ -10,8 +10,8 @@ namespace Armory
     public sealed class UiPointer : MonoBehaviour
     {
         public static UiPointer Instance { get; private set; }
-        /// <summary>True when the crosshair is on a button, so weapons hold fire.</summary>
-        public static bool OverButton => Instance != null && Instance.hovered != null;
+        /// <summary>True when the crosshair is on a button or placing a panel, so weapons hold fire.</summary>
+        public static bool OverButton => PanelGrab.Dragging || (Instance != null && Instance.hovered != null);
 
         public ArmoryRig Rig;
 
@@ -48,8 +48,8 @@ namespace Armory
                 if (hovered != null) hovered.SetHovered(true);
             }
 
-            // The ray only shows when it is useful: on a button, or while the drydock is open.
-            bool show = hovered != null || MissionDeck.Open;
+            // The ray only shows when it is useful: on a button, while placing a panel, or while the drydock is open.
+            bool show = hovered != null || MissionDeck.Open || PanelGrab.Dragging;
             ray.enabled = show;
             if (show)
             {
@@ -59,7 +59,9 @@ namespace Armory
             }
 
             bool pressed = Rig.FireHeld;
-            if (pressed && !triggerHeld && hovered != null) hovered.Press();
+            // While a panel is riding the ray the trigger belongs to PanelGrab: it drops the block, it does not
+            // press whatever button happened to drift under the crosshair.
+            if (pressed && !triggerHeld && hovered != null && !PanelGrab.Dragging) hovered.Press();
             triggerHeld = pressed;
         }
     }

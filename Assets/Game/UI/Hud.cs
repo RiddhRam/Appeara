@@ -47,10 +47,14 @@ namespace Armory
             follow.SetParent(transform, false);
         }
 
+        private PanelGrab grab;
+
         private void Start()
         {
             BuildWrist();
             BuildComms();
+            // MOVE / DOCK sit just above the comms card, under the banner.
+            grab = PanelGrab.Attach(follow, commsCard, Rig, new Vector3(CommsW / 2f - 0.13f, CommsH / 2f + 0.06f, -0.004f));
         }
 
         private void BuildWrist()
@@ -166,12 +170,16 @@ namespace Armory
             bool deckOpen = MissionDeck.Open;
             if (commsCard != null && commsCard.gameObject.activeSelf == deckOpen) commsCard.gameObject.SetActive(!deckOpen);
             var head = Rig.Head.transform;
-            Vector3 forward = head.forward;
-            forward.y = 0f;
-            if (forward.sqrMagnitude < 0.01f) forward = Vector3.forward;
-            Vector3 target = head.position + forward.normalized * CommsDistance + Vector3.down * 0.45f;
-            follow.position = Vector3.Lerp(follow.position, target, 2.5f * Time.deltaTime);
-            follow.rotation = Quaternion.LookRotation(follow.position - head.position);
+            // Once the block has been placed it stays put; PanelGrab owns the transform until you press DOCK.
+            if (grab == null || !grab.Pinned)
+            {
+                Vector3 forward = head.forward;
+                forward.y = 0f;
+                if (forward.sqrMagnitude < 0.01f) forward = Vector3.forward;
+                Vector3 target = head.position + forward.normalized * CommsDistance + Vector3.down * 0.45f;
+                follow.position = Vector3.Lerp(follow.position, target, 2.5f * Time.deltaTime);
+                follow.rotation = Quaternion.LookRotation(follow.position - head.position);
+            }
 
             // Banner: tracking tightens in (cinematic), holds, fades.
             float t = Time.time - bannerStart;
