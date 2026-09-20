@@ -18,7 +18,9 @@ namespace Armory
         public static readonly Dictionary<string, int> SurfaceHits = new Dictionary<string, int>();
         public static int EnemyHits;
         public const int MaxMines = 40;
-        private static readonly Queue<Projectile> mines = new Queue<Projectile>();
+        private static readonly Queue<(Projectile projectile, int serial)> mines = new Queue<(Projectile, int)>();
+        private static readonly Stack<Projectile> pool = new Stack<Projectile>();
+        private static int activePoolGeneration;
 
         public ParsedWeapon Weapon;
         public Vector3 Velocity;
@@ -37,6 +39,11 @@ namespace Armory
         private Enemy stuckTo;
         private Vector3 stuckOffset;
         private readonly HashSet<Enemy> alreadyHit = new HashSet<Enemy>();
+        private GameObject visual;
+        private PrimitiveType visualType;
+        private TrailRenderer trail;
+        private int poolGeneration;
+        private int mineSerial;
 
         private bool Thrown => Weapon.FireMode == FireMode.Thrown;
         /// <summary>Mines and sticky payloads are physical objects: they arc and land even from a "gun".</summary>
@@ -46,14 +53,91 @@ namespace Armory
         private void OnEnable() { All.Add(this); ArmoryPerformance.Record(PerformanceObjectKind.Projectile, true); }
         private void OnDisable() { All.Remove(this); ArmoryPerformance.Record(PerformanceObjectKind.Projectile, false); }
 
-        public void Launch(ParsedWeapon weapon, Vector3 velocity)
+        /// <summary>Gets a reset projectile from the current weapon pool, creating one only when needed.</summary>
+        public static Projectile Spawn(ParsedWeapon weapon, Vector3 position, Vector3 velocity)
+        {
+            Projectile projectile = null;
+            while (pool.Count > 0 && projectile == null) projectile = pool.Pop();
+            if (projectile == null) projectile = CreatePooledProjectile();
+            projectile.Prepare(weapon, position, velocity);
+            projectile.gameObject.SetActive(true);
+            return projectile;
+        }
+
+        /// <summary>Discards cached shots and invalidates every already-fired shot from the old weapon.</summary>
+        public static void ClearPool()
+        {
+            activePoolGeneration++;
+            mines.Clear();
+            while (pool.Count > 0)
+            {
+                var projectile = pool.Pop();
+                if (projectile != null) Destroy(projectile.gameObject);
+            }
+        }
+
+        private static Projectile CreatePooledProjectile()
+        {
+            var go = new GameObject("Projectile");
+            go.SetActive(false);
+            return go.AddComponent<Projectile>();
+        }
+
+        private void Prepare(ParsedWeapon weapon, Vector3 position, Vector3 velocity)
         {
             Weapon = weapon;
             Velocity = velocity;
+            DamageScale = 1f;
+            life = 0f;
+            Stuck = false;
+            stuckTo = null;
+            stuckOffset = Vector3.zero;
+            fuseAt = -1f;
+            alreadyHit.Clear();
+            mineSerial++;
+            poolGeneration = activePoolGeneration;
             piercesLeft = weapon.Has(Mods.Piercing) ? weapon.PierceCount : 0;
             bouncesLeft = weapon.Has(Mods.Bouncing) ? weapon.BounceCount : 0;
             // Airborne life is short; landing as a mine extends it (see BecomeMine).
             maxLife = Thrown || weapon.Has(Mods.Sticky) || weapon.Has(Mods.Proximity) ? 6f : 4f;
+            transform.SetPositionAndRotation(position, Quaternion.LookRotation(velocity));
+            ConfigureVisual(weapon);
+        }
+
+        private void ConfigureVisual(ParsedWeapon weapon)
+        {
+            float size = weapon.Shape == ProjectileShape.Mine ? 0.16f : weapon.FireMode == FireMode.Thrown ? 0.14f : 0.08f;
+            PrimitiveType type = weapon.Shape == ProjectileShape.Disc || weapon.Shape == ProjectileShape.Mine ? PrimitiveType.Cylinder
+                : weapon.Shape == ProjectileShape.Bolt ? PrimitiveType.Capsule : PrimitiveType.Sphere;
+            Vector3 scale = weapon.Shape == ProjectileShape.Bolt ? new Vector3(size * 0.6f, size * 2.5f, size * 0.6f)
+                : type == PrimitiveType.Cylinder ? new Vector3(size * 1.6f, size * 0.3f, size * 1.6f) : Vector3.one * size;
+            if (visual == null || visualType != type)
+            {
+                if (visual != null) Destroy(visual);
+                visual = Mats.Shape(type, transform, Vector3.zero, scale, Mats.Glow(weapon.Color), name: "Visual");
+                visualType = type;
+            }
+            visual.transform.localPosition = Vector3.zero;
+            visual.transform.localRotation = weapon.Shape == ProjectileShape.Bolt ? Quaternion.Euler(90f, 0f, 0f) : Quaternion.identity;
+            visual.transform.localScale = scale;
+            visual.GetComponent<Renderer>().sharedMaterial = Mats.Glow(weapon.Color);
+
+            if (weapon.Trail)
+            {
+                if (trail == null) trail = gameObject.AddComponent<TrailRenderer>();
+                trail.Clear();
+                trail.sharedMaterial = Mats.Glow(weapon.Color);
+                trail.time = 0.12f;
+                trail.widthMultiplier = size * 0.8f;
+                trail.endWidth = 0f;
+                trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                trail.enabled = true;
+            }
+            else if (trail != null)
+            {
+                trail.Clear();
+                trail.enabled = false;
+            }
         }
 
         private void Update()
@@ -152,12 +236,13 @@ namespace Armory
             Stuck = true;
             if (!Weapon.Has(Mods.Proximity)) { fuseAt = Time.time + 1.2f; return; }
             maxLife = life + 20f;
-            mines.Enqueue(this);
+            mines.Enqueue((this, mineSerial));
             // Cap the minefield: oldest mines fizzle so spam can't tank the frame rate.
             while (mines.Count > MaxMines)
             {
                 var oldest = mines.Dequeue();
-                if (oldest != null && oldest.enabled) oldest.Kill();
+                if (oldest.projectile != null && oldest.projectile.gameObject.activeInHierarchy && oldest.serial == oldest.projectile.mineSerial)
+                    oldest.projectile.Kill();
             }
         }
 
@@ -193,10 +278,19 @@ namespace Armory
         public void Kill()
         {
             using var marker = DestroyMarker.Auto();
-            if (!enabled) return;
-            enabled = false;
-            All.Remove(this);
-            Destroy(gameObject);
+            if (!gameObject.activeInHierarchy) return;
+            if (poolGeneration != activePoolGeneration)
+            {
+                Destroy(gameObject);
+                return;
+            }
+            if (trail != null)
+            {
+                trail.Clear();
+                trail.enabled = false;
+            }
+            gameObject.SetActive(false);
+            pool.Push(this);
         }
     }
 }

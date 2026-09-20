@@ -2,6 +2,7 @@ using Armory.AI;
 using Armory.Core;
 using Unity.Profiling;
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace Armory
 {
@@ -11,48 +12,66 @@ namespace Armory
         private static readonly ProfilerMarker SpawnMarker = new ProfilerMarker("Armory.Enemy.Spawn");
         private const float SwarmSpeedMultiplier = 0.5f;
         private const float OtherEnemySpeedMultiplier = 0.66f;
+        private static readonly Dictionary<EnemyKind, Stack<Enemy>> pools = new Dictionary<EnemyKind, Stack<Enemy>>();
+        private static Transform poolRoot;
 
         public static Enemy Spawn(EnemyKind kind, Vector3 position, Vector3 target, MothershipSpawnTrace spawnTrace = null)
         {
             using var marker = SpawnMarker.Auto();
-            var go = new GameObject(kind.ToString());
+            var enemy = TakeFromPool(kind);
+            bool isNew = enemy == null;
+            var go = isNew ? new GameObject(kind.ToString()) : enemy.gameObject;
+            if (isNew)
+            {
+                go.SetActive(false);
+                enemy = go.AddComponent<Enemy>();
+                enemy.Poolable = kind != EnemyKind.Boss;
+            }
+            else enemy.ResetForPool();
+
+            go.name = kind.ToString();
+            go.transform.SetParent(null, true);
             go.transform.position = position;
             go.transform.rotation = Quaternion.LookRotation(target - position);
-            var enemy = go.AddComponent<Enemy>();
 
             switch (kind)
             {
                 case EnemyKind.Swarm:
                     Stats(enemy, kind, hp: 8f, speed: 4.2f, core: 2f, radius: 0.3f, color: new Color(1f, 0.25f, 0.2f));
-                    Body(go, enemy, PrimitiveType.Sphere, new Vector3(0.6f, 0.6f, 0.6f), 0.35f);
+                    if (isNew) Body(go, enemy, PrimitiveType.Sphere, new Vector3(0.6f, 0.6f, 0.6f), 0.35f);
                     break;
                 case EnemyKind.Armored:
                     Stats(enemy, kind, hp: 160f, speed: 1.6f, core: 15f, radius: 1f, color: new Color(0.55f, 0.55f, 0.6f));
-                    Body(go, enemy, PrimitiveType.Cube, new Vector3(1.8f, 2.2f, 1.4f), 1.1f);
-                    Mats.Shape(PrimitiveType.Cube, go.transform, new Vector3(0f, 1.5f, 0.75f), new Vector3(1.5f, 0.9f, 0.2f), Mats.Lit(new Color(0.35f, 0.35f, 0.4f)), name: "Plate");
+                    if (isNew)
+                    {
+                        Body(go, enemy, PrimitiveType.Cube, new Vector3(1.8f, 2.2f, 1.4f), 1.1f);
+                        Mats.Shape(PrimitiveType.Cube, go.transform, new Vector3(0f, 1.5f, 0.75f), new Vector3(1.5f, 0.9f, 0.2f), Mats.Lit(new Color(0.35f, 0.35f, 0.4f)), name: "Plate");
+                    }
                     break;
                 case EnemyKind.Fast:
                     Stats(enemy, kind, hp: 20f, speed: 7f, core: 5f, radius: 0.4f, color: new Color(1f, 0.9f, 0.2f));
-                    Body(go, enemy, PrimitiveType.Capsule, new Vector3(0.6f, 0.8f, 0.6f), 0.8f);
+                    if (isNew) Body(go, enemy, PrimitiveType.Capsule, new Vector3(0.6f, 0.8f, 0.6f), 0.8f);
                     break;
                 case EnemyKind.Shielded:
                     Stats(enemy, kind, hp: 40f, speed: 2.5f, core: 8f, radius: 0.6f, color: new Color(0.3f, 0.5f, 1f));
                     enemy.ShieldHealth = 80f;
-                    Body(go, enemy, PrimitiveType.Capsule, new Vector3(0.9f, 1f, 0.9f), 1f);
+                    if (isNew) Body(go, enemy, PrimitiveType.Capsule, new Vector3(0.9f, 1f, 0.9f), 1f);
                     break;
                 case EnemyKind.Boss:
                     Stats(enemy, kind, hp: 2400f, speed: 1.1f, core: 60f, radius: 2.5f, color: new Color(0.7f, 0.2f, 1f));
                     break;
                 default:
                     Stats(enemy, kind, hp: 30f, speed: 3f, core: 5f, radius: 0.5f, color: new Color(0.3f, 0.95f, 0.4f));
-                    Body(go, enemy, PrimitiveType.Capsule, new Vector3(0.8f, 0.9f, 0.8f), 0.9f);
+                    if (isNew) Body(go, enemy, PrimitiveType.Capsule, new Vector3(0.8f, 0.9f, 0.8f), 0.9f);
                     break;
             }
 
             // Eyes on everything so direction reads at a distance.
-            if (kind != EnemyKind.Boss)
+            if (isNew && kind != EnemyKind.Boss)
                 Mats.Shape(PrimitiveType.Sphere, go.transform, new Vector3(0f, enemy.Radius * 2f + 0.3f, enemy.Radius * 0.9f), Vector3.one * Mathf.Max(0.15f, enemy.Radius * 0.35f), Mats.Lit(Color.white, 1.5f), name: "Eye");
 
+            enemy.enabled = true;
+            go.SetActive(true);
             enemy.Init(kind, target);
             if (kind == EnemyKind.Boss)
             {
@@ -70,6 +89,38 @@ namespace Armory
                 }
             }
             return enemy;
+        }
+
+        public static bool ReturnToPool(Enemy enemy)
+        {
+            if (enemy == null || !enemy.Poolable || enemy.Avatar != null || enemy.ExternallyDriven) return false;
+            EnemyKind kind = enemy.Kind;
+            enemy.ResetForPool();
+            enemy.transform.SetParent(PoolRoot, true);
+            enemy.gameObject.SetActive(false);
+            if (!pools.TryGetValue(kind, out var pool)) pools[kind] = pool = new Stack<Enemy>();
+            pool.Push(enemy);
+            return true;
+        }
+
+        private static Enemy TakeFromPool(EnemyKind kind)
+        {
+            if (!pools.TryGetValue(kind, out var pool)) return null;
+            while (pool.Count > 0)
+            {
+                var enemy = pool.Pop();
+                if (enemy != null) return enemy;
+            }
+            return null;
+        }
+
+        private static Transform PoolRoot
+        {
+            get
+            {
+                if (poolRoot == null) poolRoot = new GameObject("Enemy Pool").transform;
+                return poolRoot;
+            }
         }
 
         private static void Stats(Enemy enemy, EnemyKind kind, float hp, float speed, float core, float radius, Color color)

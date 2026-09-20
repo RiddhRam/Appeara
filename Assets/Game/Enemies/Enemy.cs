@@ -24,6 +24,8 @@ namespace Armory
         public Color BaseColor;
         public bool ExternallyDriven;
         public HiveAvatar Avatar;
+        /// <summary>Set only for standard factory enemies; bosses and scripted threats retain their bespoke lifetime.</summary>
+        public bool Poolable { get; internal set; }
 
         private Renderer[] renderers;
         private HealthBar healthBar;
@@ -65,6 +67,27 @@ namespace Armory
             zigPhase = Random.value * 10f;
             if (kind == EnemyKind.Boss || ExternallyDriven) return;
             RefreshCounterPackage();
+        }
+
+        /// <summary>Clears transient combat state before this standard enemy is parked in the factory pool.</summary>
+        public void ResetForPool()
+        {
+            Health = 0f;
+            ShieldHealth = 0f;
+            Target = Vector3.zero;
+            Avatar = null;
+            ExternallyDriven = false;
+            Status.Clear();
+            flashUntil = 0f;
+            zigPhase = 0f;
+            nextDodgeCheck = dodgeCooldown = nextTeleport = nextIntercept = 0f;
+            dodgeVelocity = Vector3.zero;
+            lateral = Vector3.zero;
+            counterArmor = counterShield = counterTeleport = false;
+            defenseSignature = null;
+            if (healthBar != null) { healthBar.gameObject.SetActive(false); Destroy(healthBar.gameObject); healthBar = null; }
+            if (shieldBubble != null) { shieldBubble.SetActive(false); Destroy(shieldBubble); shieldBubble = null; }
+            if (defensiveShell != null) { defensiveShell.SetActive(false); Destroy(defensiveShell); defensiveShell = null; }
         }
 
         /// <summary>Replaces reversible counter stats and visuals on an enemy that may already be alive.</summary>
@@ -317,8 +340,6 @@ namespace Armory
             using var marker = DestroyMarker.Auto();
             if (!enabled) return;
             Health = 0f;
-            enabled = false;
-            All.Remove(this);
             if (Avatar != null) Avatar.Defeated(killed);
             if (killed)
             {
@@ -326,6 +347,9 @@ namespace Armory
                 ProceduralSfx.PlayAt(ProceduralSfx.Hit, Center, 0.8f);
             }
             WaveDirector.Instance?.OnEnemyRemoved(this, killed);
+            if (EnemyFactory.ReturnToPool(this)) return;
+            enabled = false;
+            All.Remove(this);
             Destroy(gameObject, Avatar != null && killed ? 3.5f : 0f);
         }
 

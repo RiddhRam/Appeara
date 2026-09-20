@@ -289,6 +289,7 @@ namespace Armory
         private void Equip(ParsedWeapon spec, bool announce, FabricationTrace trace = null)
         {
             if (spec == null) return;
+            Projectile.ClearPool();
             if (Current != null) Destroy(Current.gameObject);
             Current = WeaponAssembler.Build(spec, Rig.Aim);
             if (!announce) return;

@@ -129,28 +129,7 @@ namespace Armory
         private Projectile SpawnProjectile(Vector3 origin, Vector3 velocity)
         {
             using var marker = ProjectileSpawnMarker.Auto();
-            float size = Spec.Shape == ProjectileShape.Mine ? 0.16f : Spec.FireMode == FireMode.Thrown ? 0.14f : 0.08f;
-            PrimitiveType type = Spec.Shape == ProjectileShape.Disc || Spec.Shape == ProjectileShape.Mine ? PrimitiveType.Cylinder : Spec.Shape == ProjectileShape.Bolt ? PrimitiveType.Capsule : PrimitiveType.Sphere;
-            Vector3 scale = Spec.Shape == ProjectileShape.Bolt ? new Vector3(size * 0.6f, size * 2.5f, size * 0.6f)
-                : type == PrimitiveType.Cylinder ? new Vector3(size * 1.6f, size * 0.3f, size * 1.6f) : Vector3.one * size;
-
-            var go = new GameObject("Projectile");
-            go.transform.position = origin;
-            go.transform.rotation = Quaternion.LookRotation(velocity);
-            var visual = Mats.Shape(type, go.transform, Vector3.zero, scale, Mats.Glow(Spec.Color), name: "Visual");
-            if (Spec.Shape == ProjectileShape.Bolt) visual.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            if (Spec.Trail)
-            {
-                var trail = go.AddComponent<TrailRenderer>();
-                trail.sharedMaterial = Mats.Glow(Spec.Color);
-                trail.time = 0.12f;
-                trail.widthMultiplier = size * 0.8f;
-                trail.endWidth = 0f;
-                trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            }
-            var projectile = go.AddComponent<Projectile>();
-            projectile.Launch(Spec, velocity);
-            return projectile;
+            return Projectile.Spawn(Spec, origin, velocity);
         }
 
         private void UpdateBeam(bool held, Transform aim)
