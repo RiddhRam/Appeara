@@ -53,7 +53,13 @@
     <Compile Include="Assets/Game/Tests/HiveAvatarTests.cs" />
     <Compile Include="Assets/Game/Tests/HiveTargetsTests.cs" />
     <Compile Include="Assets/Game/Tests/CoreTests.cs" />
+    <Compile Include="Assets/Game/Tests/HiveAttackArtTests.cs" />
     <Compile Include="Assets/Game/Tests/HiveAvatarRigTests.cs" />
+    <Compile Include="Assets/Game/Tests/PlayerVitalsTests.cs" />
+    <Compile Include="Assets/Game/Tests/WeaponBudgetTests.cs" />
+    <Compile Include="Assets/Game/Tests/ArchetypeTests.cs" />
+    <Compile Include="Assets/Game/Tests/MonsterArtTests.cs" />
+    <Compile Include="Assets/Game/Tests/ElementalAssetTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets/Game/Tests/Armory.Tests.asmdef" />

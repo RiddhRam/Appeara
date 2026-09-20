@@ -54,6 +54,7 @@
     <Compile Include="Assets/Game/Enemies/WaveDirector.cs" />
     <Compile Include="Assets/Game/Enemies/StationCore.cs" />
     <Compile Include="Assets/Game/Enemies/EnemyVisuals.cs" />
+    <Compile Include="Assets/Game/Core/WeaponBudget.cs" />
     <Compile Include="Assets/Game/AI/MicCapture.cs" />
     <Compile Include="Assets/Game/Core/WeaponSpecParser.cs" />
     <Compile Include="Assets/Game/AI/AiConfig.cs" />
@@ -61,6 +62,7 @@
     <Compile Include="Assets/Game/AI/ElevenLabsClient.cs" />
     <Compile Include="Assets/Game/UI/MissionDeck.cs" />
     <Compile Include="Assets/Game/Core/StatusEffects.cs" />
+    <Compile Include="Assets/Game/Core/SwingAndDraw.cs" />
     <Compile Include="Assets/Game/AI/ArmoryTelemetry.cs" />
     <Compile Include="Assets/Game/Enemies/HiveAvatar.cs" />
     <Compile Include="Assets/Game/AI/OpenAiClient.cs" />
@@ -82,8 +84,9 @@
     <Compile Include="Assets/Game/Weapons/Weapon.cs" />
     <Compile Include="Assets/Game/UI/HudButton.cs" />
     <Compile Include="Assets/Game/Weapons/Effects.cs" />
-    <Compile Include="Assets/Game/UI/SketchBoard.cs" />
     <Compile Include="Assets/Game/Weapons/ProceduralSfx.cs" />
+    <Compile Include="Assets/Game/UI/SpaceSky.cs" />
+    <Compile Include="Assets/Game/UI/SpectatorView.cs" />
     <Compile Include="Assets/Game/VR/ArmoryRig.cs" />
     <Compile Include="Assets/Game/UI/BlueprintHologram.cs" />
     <Compile Include="Assets/Game/Core/HiveTargets.cs" />
@@ -91,9 +94,11 @@
     <Compile Include="Assets/Game/Weapons/WeaponAssembler.cs" />
     <Compile Include="Assets/Game/Enemies/Mothership.cs" />
     <Compile Include="Assets/Game/Weapons/Projectile.cs" />
+    <Compile Include="Assets/Game/UI/HealthBar.cs" />
     <Compile Include="Assets/Game/Enemies/Enemy.cs" />
     <Compile Include="Assets/Game/AI/ShipAI.cs" />
     <Compile Include="Assets/Game/VR/Locomotion.cs" />
+    <Compile Include="Assets/Game/Core/PlayerVitals.cs" />
     <Compile Include="Assets/Game/UI/Hud.cs" />
     <Compile Include="Assets/Game/UI/UiPointer.cs" />
     <Compile Include="Assets/Game/UI/ArmoryPrompt.cs" />
@@ -106,6 +111,7 @@
     <None Include="Assets/Game/UI/Resources/Fonts/OFL.txt" />
     <None Include="Assets/Game/UI/HudBar.shader" />
     <None Include="Assets/Game/UI/HudPanel.shader" />
+    <None Include="Assets/Game/UI/SpaceSkybox.shader" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">

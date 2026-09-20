@@ -219,7 +219,9 @@ namespace Armory
         {
             private IEnumerator Start()
             {
-                var parts = transform.Find("Parts");
+                // Placeholder weapons animate from their weapon root; generated meshes animate from their Parts root.
+                // Support both, rather than looking for a nested Parts object that generated meshes do not have.
+                var parts = transform.Find("Parts") ?? transform;
                 var scales = new Vector3[parts.childCount];
                 for (int i = 0; i < parts.childCount; i++)
                 {

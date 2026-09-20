@@ -51,10 +51,15 @@
   <ItemGroup>
     <Compile Include="Assets/Game/Editor/HiveAvatarSetup.cs" />
     <Compile Include="Assets/Game/Editor/ArmorySceneSetup.cs" />
+    <Compile Include="Assets/Game/Editor/DemoArtPreview.cs" />
+    <Compile Include="Assets/Game/Editor/MonsterArtBuilder.cs" />
     <Compile Include="Assets/Game/Editor/HiveAvatarVerification.cs" />
     <Compile Include="Assets/Game/Editor/EnemyModelSetup.cs" />
+    <Compile Include="Assets/Game/Editor/HiveAttackArtBuilder.cs" />
     <Compile Include="Assets/Game/Editor/StationMaterialFixer.cs" />
+    <Compile Include="Assets/Game/Editor/ArmoryPrewarm.cs" />
     <Compile Include="Assets/Game/Editor/ArmoryCommandBridge.cs" />
+    <Compile Include="Assets/Game/Editor/ElementalAssetBuilder.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets/Game/Editor/Armory.Editor.asmdef" />
