@@ -220,6 +220,26 @@ namespace Armory.Tests
             Assert.Less(muzzle.z, 0.6f);
         }
 
+        [TestCase(1.5f, 0f, 0f)]
+        [TestCase(-1.5f, 0f, 0f)]
+        [TestCase(0f, 1.5f, 0f)]
+        [TestCase(0f, 0f, -1.5f)]
+        public void NormalizeTurnsTheReportedMuzzleForward(float muzzleX, float muzzleY, float muzzleZ)
+        {
+            string json =
+                "{\"parts\":[{\"shape\":\"box\",\"x\":" + (muzzleX * 0.4f) +
+                ",\"y\":" + (muzzleY * 0.4f) + ",\"z\":" + (muzzleZ * 0.4f) +
+                ",\"sx\":0.1,\"sy\":0.1,\"sz\":0.6,\"color\":\"#FF0000\",\"glow\":false}]," +
+                "\"muzzleX\":" + muzzleX + ",\"muzzleY\":" + muzzleY + ",\"muzzleZ\":" + muzzleZ + "}";
+
+            var parts = WeaponMesh.Parse(json, Color.white, out var muzzle);
+            WeaponMesh.Normalize(parts, ref muzzle);
+
+            Assert.Greater(muzzle.z, 0.05f);
+            Assert.AreEqual(0f, muzzle.x, 0.001f);
+            Assert.AreEqual(0f, muzzle.y, 0.001f);
+        }
+
         [Test]
         public void BadJsonYieldsNoParts()
         {

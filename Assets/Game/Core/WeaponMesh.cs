@@ -77,8 +77,11 @@ namespace Armory.Core
                     Glow = raw.glow,
                 });
             }
-            muzzle = new Vector3(Sane(spec.muzzleX), Sane(spec.muzzleY),
-                spec.muzzleZ <= 0f ? Furthest(parts) : Sane(spec.muzzleZ));
+            muzzle = new Vector3(Sane(spec.muzzleX), Sane(spec.muzzleY), Sane(spec.muzzleZ));
+            // A muzzle on X, Y, or -Z is still useful: it tells us which way the model considered forward.
+            // Only an entirely absent/zero muzzle needs the legacy +Z fallback.
+            if (muzzle.sqrMagnitude <= MinPart * MinPart)
+                muzzle = new Vector3(0f, 0f, Furthest(parts));
             return parts;
         }
 
@@ -90,6 +93,7 @@ namespace Armory.Core
         public static void Normalize(List<MeshPart> parts, ref Vector3 muzzle, float targetLength = TargetLength)
         {
             if (parts == null || parts.Count == 0) return;
+            CanonicalizeForward(parts, ref muzzle);
             Vector3 min = Vector3.positiveInfinity, max = Vector3.negativeInfinity;
             foreach (var part in parts)
             {
@@ -112,6 +116,34 @@ namespace Armory.Core
             }
             muzzle = new Vector3((muzzle.x - centre.x) * factor, (muzzle.y - centre.y) * factor, (muzzle.z - min.z) * factor - 0.06f);
             if (muzzle.z < 0.05f) muzzle.z = Furthest(parts);
+        }
+
+        /// <summary>
+        /// Uses the semantic muzzle point to correct the common vision-model mistake of building the weapon along
+        /// X, Y, or -Z. Snapping to a cardinal axis avoids introducing a small roll or pitch when the muzzle is
+        /// intentionally a little above or to the side of the grip.
+        /// </summary>
+        private static void CanonicalizeForward(List<MeshPart> parts, ref Vector3 muzzle)
+        {
+            if (muzzle.sqrMagnitude <= MinPart * MinPart) return;
+
+            Vector3 absolute = new Vector3(Mathf.Abs(muzzle.x), Mathf.Abs(muzzle.y), Mathf.Abs(muzzle.z));
+            Vector3 source;
+            if (absolute.x > absolute.y && absolute.x > absolute.z)
+                source = muzzle.x >= 0f ? Vector3.right : Vector3.left;
+            else if (absolute.y > absolute.z)
+                source = muzzle.y >= 0f ? Vector3.up : Vector3.down;
+            else
+                source = muzzle.z >= 0f ? Vector3.forward : Vector3.back;
+
+            if (source == Vector3.forward) return;
+            Quaternion correction = Quaternion.FromToRotation(source, Vector3.forward);
+            foreach (var part in parts)
+            {
+                part.Position = correction * part.Position;
+                part.Rotation = (correction * Quaternion.Euler(part.Rotation)).eulerAngles;
+            }
+            muzzle = correction * muzzle;
         }
 
         /// <summary>Front of the weapon, used when the model forgets to place a muzzle.</summary>
