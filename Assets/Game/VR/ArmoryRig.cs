@@ -17,6 +17,8 @@ namespace Armory
     public sealed class ArmoryRig : MonoBehaviour
     {
         public const float DesktopEyeHeight = 1.65f;
+        [Tooltip("Degrees rotated per mouse-delta unit while holding right click in desktop mode.")]
+        public float DesktopLookSensitivity = 0.45f;
 
         public Camera Head { get; private set; }
         public Transform RightHand { get; private set; }
@@ -296,7 +298,7 @@ namespace Armory
 
             if (mouse.rightButton.isPressed)
             {
-                var delta = mouse.delta.ReadValue() * 0.15f;
+                var delta = mouse.delta.ReadValue() * DesktopLookSensitivity;
                 desktopYaw += delta.x;
                 desktopPitch = Mathf.Clamp(desktopPitch - delta.y, -80f, 80f);
             }
