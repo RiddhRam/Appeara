@@ -22,12 +22,14 @@ namespace Armory
         public const float KnockDistance = 0.22f;
         public const float RecoverSeconds = 0.22f;
         public const float SpawnSeconds = 0.28f;
+        public const float DeathSeconds = 0.9f;
         /// <summary>Squash on impact: briefly wider and shorter, the way a body absorbs a hit.</summary>
         public const float Squash = 0.18f;
 
         private Transform model;
         private Vector3 restPosition;
         private Vector3 restScale;
+        private Quaternion restRotation;
         private float bobPhase;
         private float bobHeight;
         private float bobSpeed;
@@ -36,6 +38,10 @@ namespace Armory
         private float knockAt = -99f;
         private float spawnAt;
         private bool idleMotion;
+        private float deathAt = -99f;
+        private bool dying;
+        private float attackAt = -99f;
+        private float attackSeconds;
 
         public static EnemyPresence Attach(Transform model, float radius, bool idleMotion)
         {
@@ -51,6 +57,7 @@ namespace Armory
             model = target;
             restPosition = model.localPosition;
             restScale = model.localScale;
+            restRotation = model.localRotation;
             idleMotion = breathes;
             // Scaled to the body: a swarmer twitching as hard as a brute looks like a glitch, not a hit.
             bobHeight = Mathf.Clamp(radius * 0.12f, 0.02f, 0.14f);
@@ -59,6 +66,9 @@ namespace Armory
             spawnAt = Time.time;
             knockAt = -99f;
             knock = Vector3.zero;
+            deathAt = -99f;
+            dying = false;
+            attackAt = -99f;
         }
 
         /// <summary>
@@ -81,6 +91,32 @@ namespace Armory
             spawnAt = Time.time;
             knockAt = -99f;
             knock = Vector3.zero;
+            deathAt = -99f;
+            dying = false;
+            attackAt = -99f;
+            if (model != null)
+            {
+                model.localPosition = restPosition;
+                model.localRotation = restRotation;
+                model.localScale = restScale;
+            }
+        }
+
+        /// <summary>Starts the pooled heavy-body tip and sink without moving its gameplay root.</summary>
+        public void Die()
+        {
+            if (model == null) return;
+            dying = true;
+            deathAt = Time.time;
+            knockAt = -99f;
+        }
+
+        /// <summary>A short forward lean that telegraphs attacks on models with no authored attack state.</summary>
+        public void Attack(float windupSeconds)
+        {
+            if (model == null || dying) return;
+            attackAt = Time.time;
+            attackSeconds = Mathf.Max(0.01f, windupSeconds);
         }
 
         private void LateUpdate()
@@ -88,6 +124,16 @@ namespace Armory
             if (model == null) return;
             Vector3 position = restPosition;
             Vector3 scale = restScale;
+
+            if (dying)
+            {
+                float death = Mathf.Clamp01((Time.time - deathAt) / DeathSeconds);
+                float eased = death * death * (3f - 2f * death);
+                model.localPosition = restPosition + Vector3.down * (restScale.y * 0.45f * eased);
+                model.localRotation = restRotation * Quaternion.Euler(78f * eased, 0f, 12f * eased);
+                model.localScale = restScale;
+                return;
+            }
 
             // Materialising, so a wave arrives rather than appearing.
             float spawn = (Time.time - spawnAt) / SpawnSeconds;
@@ -102,6 +148,16 @@ namespace Armory
                 bobPhase += Time.deltaTime * bobSpeed;
                 position += Vector3.up * (Mathf.Sin(bobPhase) * bobHeight);
             }
+
+
+            float attack = (Time.time - attackAt) / attackSeconds;
+            if (attack >= 0f && attack < 1f)
+            {
+                float lean = Mathf.Sin(attack * Mathf.PI * 0.5f);
+                position += Vector3.forward * (0.16f * lean);
+                model.localRotation = restRotation * Quaternion.Euler(12f * lean, 0f, 0f);
+            }
+            else model.localRotation = restRotation;
 
             float since = Time.time - knockAt;
             if (since < RecoverSeconds)

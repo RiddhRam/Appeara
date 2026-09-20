@@ -38,6 +38,7 @@ namespace Armory.Editor
             entries.Add(BuildOne(EnemyKind.Armored, "GunBot/Gun_Bot.fbx", "GunBot/GB_C.jpg", null, 3.2f, true));
             entries.Add(BuildOne(EnemyKind.Fast, "FloatingRobot/R01.fbx", "FloatingRobot/robot01fbx_robot2_AlbedoTransparency.png", "FloatingRobot/robot01fbx_robot2_Emission.png", 1.6f, true));
             entries.Add(BuildOne(EnemyKind.Shielded, "Wendy/wendy_Scene.obj", "Wendy/tex_wendy.jpg", null, 2.4f, true));
+            MixamoEnemyAnimationSetup.ConfigureControllers(false);
             Directory.CreateDirectory(Path.GetDirectoryName(Table));
             AssetDatabase.Refresh();
             var table = AssetDatabase.LoadAssetAtPath<EnemyVisuals>(Table);
@@ -187,13 +188,13 @@ namespace Armory.Editor
             if (controller == null) controller = AnimatorController.CreateAnimatorControllerAtPath(path);
             var machine = controller.layers[0].stateMachine;
             foreach (var state in machine.states) machine.RemoveState(state.state);
-            controller.parameters = Array.Empty<AnimatorControllerParameter>();
             return controller;
         }
 
         private static AnimatorController RigController(string name, AnimationClip idle, AnimationClip walk)
         {
-            var controller = Controller(name + "Rig"); controller.AddParameter("Moving", AnimatorControllerParameterType.Bool);
+            var controller = Controller(name + "Rig");
+            if (!controller.parameters.Any(parameter => parameter.name == "Moving")) controller.AddParameter("Moving", AnimatorControllerParameterType.Bool);
             var machine = controller.layers[0].stateMachine;
             var idleState = machine.AddState("Idle"); idleState.motion = LoopCopy(name + "Idle", idle);
             var movingState = machine.AddState("Moving"); movingState.motion = LoopCopy(name + "Moving", walk);

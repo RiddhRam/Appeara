@@ -151,5 +151,49 @@ namespace Armory.Tests
         {
             Assert.IsNull(EnemyPresence.Attach(null, 1f, true));
         }
+
+        [Test]
+        public void HeavyDeathTipsAndSinksThenRespawnRestoresTheAuthoredPose()
+        {
+            var model = Model(out _);
+            var restPosition = model.localPosition;
+            var restRotation = model.localRotation;
+            var presence = EnemyPresence.Attach(model, 1f, idleMotion: false);
+            typeof(EnemyPresence).GetField("spawnAt", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                .SetValue(presence, Time.time - EnemyPresence.SpawnSeconds - 1f);
+
+            presence.Die();
+            typeof(EnemyPresence).GetField("deathAt", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                .SetValue(presence, Time.time - EnemyPresence.DeathSeconds * 0.75f);
+            Tick(presence, 1);
+
+            Assert.Less(model.localPosition.y, 0f);
+            Assert.Greater(Quaternion.Angle(Quaternion.identity, model.localRotation), 20f);
+
+            presence.Respawned();
+            typeof(EnemyPresence).GetField("spawnAt", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                .SetValue(presence, Time.time - EnemyPresence.SpawnSeconds - 1f);
+            Tick(presence, 1);
+
+            Assert.That(model.localPosition, Is.EqualTo(restPosition));
+            Assert.That(model.localRotation, Is.EqualTo(restRotation));
+        }
+
+        [Test]
+        public void AttackLeansTheModelForwardWithoutMovingItsGameplayRoot()
+        {
+            var model = Model(out var root);
+            var presence = EnemyPresence.Attach(model, 1f, idleMotion: false);
+            typeof(EnemyPresence).GetField("spawnAt", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                .SetValue(presence, Time.time - EnemyPresence.SpawnSeconds - 1f);
+
+            presence.Attack(0.45f);
+            typeof(EnemyPresence).GetField("attackAt", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                .SetValue(presence, Time.time - 0.3f);
+            Tick(presence, 1);
+
+            Assert.Greater(model.localPosition.z, 0.05f);
+            Assert.That(root.position, Is.EqualTo(Vector3.zero));
+        }
     }
 }

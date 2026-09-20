@@ -21,6 +21,10 @@ namespace Armory
 
         private Animator animator;
         private int movingParameter;
+        private int attackParameter;
+        private int hitParameter;
+        private int dieParameter;
+        private float deathAnimationSeconds;
         private bool moving;
         private bool movingKnown;
         // The staged AlienMonster "moving" take is identical to its idle take. This small root-only gait
@@ -30,6 +34,8 @@ namespace Armory
         private float gaitPhase;
         private bool modelPoseKnown;
         private EnemyKind boundKind;
+        private bool dying;
+        private float proceduralAttackUntil;
 
         /// <summary>Root of the instantiated model; null once the enemy has died or when no art was bound.</summary>
         public Transform Model { get; private set; }
@@ -46,10 +52,40 @@ namespace Armory
         /// <summary>A body out of the pool keeps its model, so the pop-in has to be restarted by hand.</summary>
         public void Respawned() { if (Presence != null) Presence.Respawned(); }
 
+        /// <summary>Plays an authored attack when the controller exposes an Attack trigger.</summary>
+        public void Attack()
+        {
+            SetTrigger(attackParameter);
+            proceduralAttackUntil = Time.time + Enemy.AttackWindupSeconds;
+            if (Presence != null) Presence.Attack(Enemy.AttackWindupSeconds);
+        }
+
         /// <summary>Knocks the model back along the shot. Silent when this kind is a bare placeholder.</summary>
         public void Hit(Vector3 fromDirection, float severity)
         {
+            // Do not replace an attack tell with a reaction pose while its already-scheduled core hit remains.
+            // Procedural recoil still gives immediate hit feedback without obscuring the windup.
+            if (Time.time >= proceduralAttackUntil) SetTrigger(hitParameter);
             if (Presence != null) Presence.Hit(fromDirection, severity);
+        }
+
+        /// <summary>Plays an authored death trigger and optionally adds the pooled heavy-body collapse.</summary>
+        public float Die(bool collapse)
+        {
+            dying = true;
+            SetTrigger(dieParameter);
+            if (animator != null && dieParameter != 0 && deathAnimationSeconds <= 0f)
+            {
+                // Imported Mixamo takes sometimes retain the generic name "mixamo.com". Let the transition
+                // resolve once and ask the active Die state for its real duration instead of trusting the clip name.
+                animator.Update(0f);
+                var state = animator.IsInTransition(0)
+                    ? animator.GetNextAnimatorStateInfo(0)
+                    : animator.GetCurrentAnimatorStateInfo(0);
+                if (state.IsName("Die")) deathAnimationSeconds = state.length;
+            }
+            if (collapse && Presence != null) Presence.Die();
+            return Mathf.Max(collapse ? EnemyPresence.DeathSeconds : 0f, deathAnimationSeconds);
         }
 
         /// <summary>
@@ -181,6 +217,10 @@ namespace Armory
             // Settle into the controller's default state now: the bake in Fit measures whatever pose is applied.
             animator.Rebind();
             animator.Update(0f);
+            attackParameter = Trigger(animator, "Attack");
+            hitParameter = Trigger(animator, "Hit");
+            dieParameter = Trigger(animator, "Die");
+            deathAnimationSeconds = dieParameter != 0 ? DeathClipSeconds(animator) : 0f;
             if (string.IsNullOrEmpty(entry.MovingParameter) || !HasBool(animator, entry.MovingParameter)) return;
             movingParameter = Animator.StringToHash(entry.MovingParameter);
         }
@@ -194,6 +234,32 @@ namespace Armory
             return false;
         }
 
+        private static int Trigger(Animator target, string name)
+        {
+            foreach (var parameter in target.parameters)
+                if (parameter.type == AnimatorControllerParameterType.Trigger && parameter.name == name)
+                    return Animator.StringToHash(name);
+            return 0;
+        }
+
+        private static float DeathClipSeconds(Animator target)
+        {
+            float seconds = 0f;
+            foreach (var clip in target.runtimeAnimatorController.animationClips)
+            {
+                if (clip == null) continue;
+                string clipName = clip.name.ToLowerInvariant();
+                if (clipName.Contains("death") || clipName.Contains("dying"))
+                    seconds = Mathf.Max(seconds, clip.length);
+            }
+            return seconds;
+        }
+
+        private void SetTrigger(int parameter)
+        {
+            if (animator != null && parameter != 0) animator.SetTrigger(parameter);
+        }
+
         /// <summary>Walk cycle on while the alien is actually moving; a stunned alien stands still.</summary>
         public void SetMoving(bool value)
         {
@@ -205,7 +271,7 @@ namespace Armory
 
         private void LateUpdate()
         {
-            if (!modelPoseKnown || Model == null) return;
+            if (dying || Time.time < proceduralAttackUntil || !modelPoseKnown || Model == null) return;
             if (!moving)
             {
                 Model.localPosition = modelRestPosition;
@@ -226,6 +292,8 @@ namespace Armory
         {
             movingKnown = false;
             moving = false;
+            dying = false;
+            proceduralAttackUntil = 0f;
             if (modelPoseKnown && Model != null)
             {
                 Model.localPosition = modelRestPosition;
@@ -241,6 +309,10 @@ namespace Armory
         {
             animator = null;
             movingParameter = 0;
+            attackParameter = hitParameter = dieParameter = 0;
+            deathAnimationSeconds = 0f;
+            dying = false;
+            proceduralAttackUntil = 0f;
             Renderers = null;
             Presence = null;
             if (Model == null) return;

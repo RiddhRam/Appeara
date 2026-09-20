@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections;
 using System.Linq;
 using Armory.AI;
 using Armory.Core;
@@ -68,6 +69,11 @@ namespace Armory
         private float nextTeleport;
         private float nextIntercept;
         private Vector3 lateral;
+        public const float AttackWindupSeconds = 0.45f;
+        public const float AttackRecoverySeconds = 0.75f;
+        private readonly EnemyAttackRhythm attackRhythm = new EnemyAttackRhythm(AttackWindupSeconds, AttackRecoverySeconds);
+        private bool dying;
+        private Collider[] deathColliders;
 
         public bool Alive => Health > 0f;
         public bool ShieldUp => ShieldHealth > 0f;
@@ -93,6 +99,13 @@ namespace Armory
         /// <summary>Clears transient combat state before this standard enemy is parked in the factory pool.</summary>
         public void ResetForPool()
         {
+            StopAllCoroutines();
+            if (deathColliders != null)
+                foreach (var collider in deathColliders)
+                    if (collider != null) collider.enabled = true;
+            deathColliders = null;
+            dying = false;
+            attackRhythm.Reset();
             Health = 0f;
             ShieldHealth = 0f;
             Target = Vector3.zero;
@@ -192,16 +205,34 @@ namespace Armory
             float dt = Time.deltaTime;
             var ms = Mothership.Instance;
 
+            float burn = Status.BurnDamage(Time.time, dt);
+            if (burn > 0f)
+            {
+                Health -= burn;
+                if (Health <= 0f) { Die(true); return; }
+            }
+
+            // Keep flashes and status colours advancing even while the enemy is stationary at the core.
+            if (flashUntil > 0f && Time.time > flashUntil) flashUntil = 0f;
+            if (flashUntil <= 0f)
+            {
+                var debuff = Status.Tint(Time.time);
+                SetTint(debuff ?? RestingColor(ms), resting: !debuff.HasValue);
+            }
+
             Vector3 toTarget = Target - transform.position;
             toTarget.y = 0f;
             float distance = toTarget.magnitude;
             float reach = StationCore.Instance != null ? StationCore.Instance.ReachRadius : 1.5f;
             if (distance < reach + Radius)
             {
-                StationCore.Instance?.TakeDamage(CoreDamage);
-                Die(false);
+                if (Visual != null) Visual.SetMoving(false);
+                var beat = attackRhythm.Tick(dt, true, Status.SpeedMultiplier(Time.time) > 0.01f);
+                if (beat == EnemyAttackBeat.Started) Visual?.Attack();
+                else if (beat == EnemyAttackBeat.Hit) StationCore.Instance?.TakeDamage(CoreDamage);
                 return;
             }
+            attackRhythm.Tick(0f, false, true);
 
             Vector3 forward = toTarget / distance;
             Vector3 side = Vector3.Cross(Vector3.up, forward);
@@ -232,19 +263,6 @@ namespace Armory
             if (velocity.sqrMagnitude > 0.01f)
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(new Vector3(velocity.x, 0f, velocity.z)), 8f * dt);
 
-            float burn = Status.BurnDamage(Time.time, dt);
-            if (burn > 0f)
-            {
-                Health -= burn;
-                if (Health <= 0f) { Die(true); return; }
-            }
-            // Tint shows the active debuff (orange burning, blue chilled, yellow stunned) once the hit flash ends.
-            if (flashUntil > 0f && Time.time > flashUntil) flashUntil = 0f;
-            if (flashUntil <= 0f)
-            {
-                var debuff = Status.Tint(Time.time);
-                SetTint(debuff ?? RestingColor(ms), resting: !debuff.HasValue);
-            }
         }
 
         private Vector3 SeparationFrom(List<Enemy> others)
@@ -325,8 +343,9 @@ namespace Armory
             // Shove the body along the shot. Severity is relative to its own health, so a rifle round staggers a
             // swarmer and barely moves a brute, which is the matchup reading as a physical fact rather than a
             // damage number. Only the model moves; the collider stays put so aiming is unaffected.
-            if (Visual != null && hitPoint.HasValue)
-                Visual.Hit(Center - hitPoint.Value, amount / Mathf.Max(1f, MaxHealth) * 3f);
+            if (Visual != null)
+                Visual.Hit(hitPoint.HasValue ? Center - hitPoint.Value : -transform.forward,
+                    amount / Mathf.Max(1f, MaxHealth) * 3f);
             if (multiplier >= 1.4f) WorldText.Popup(Center + Vector3.up * 0.8f, "WEAK!", new Color(1f, 0.85f, 0.2f));
             else if (multiplier <= 0.45f) WorldText.Popup(Center + Vector3.up * 0.8f, shield ? "SHIELDED" : "RESISTED", new Color(0.6f, 0.6f, 0.7f));
 
@@ -433,7 +452,8 @@ namespace Armory
         public void Die(bool killed)
         {
             using var marker = DestroyMarker.Auto();
-            if (!enabled) return;
+            if (!enabled || dying) return;
+            dying = true;
             Health = 0f;
             if (Avatar != null) Avatar.Defeated(killed);
             if (killed)
@@ -444,6 +464,19 @@ namespace Armory
                 ProceduralSfx.PlayAt(ProceduralSfx.Hit, Center, 0.8f);
             }
             WaveDirector.Instance?.OnEnemyRemoved(this, killed);
+            All.Remove(this);
+            bool heavyCollapse = killed && Poolable && (Kind == EnemyKind.Armored || Kind == EnemyKind.Shielded);
+            float deathHold = Visual != null ? Visual.Die(heavyCollapse) : 0f;
+            bool delayPool = killed && Poolable && Kind != EnemyKind.Swarm &&
+                (heavyCollapse || (Kind == EnemyKind.Grunt && deathHold > 0f));
+            if (delayPool)
+            {
+                deathColliders = GetComponentsInChildren<Collider>(true)
+                    .Where(collider => collider != null && collider.enabled).ToArray();
+                foreach (var collider in deathColliders) collider.enabled = false;
+                StartCoroutine(ReturnAfterDeath(deathHold));
+                return;
+            }
             // A pooled enemy keeps its authored model. Releasing it here would park a body whose model is gone
             // and whose placeholder renderers are still hidden, so it would come back out of the pool invisible;
             // re-instantiating a skinned mesh per spawn is also most of what the pool exists to avoid.
@@ -452,9 +485,14 @@ namespace Armory
             // root, which the avatar holds open for its death animation.
             if (Visual != null) Visual.Release();
             enabled = false;
-            All.Remove(this);
             // The boss owns its own collapse: destroying it on a hardcoded 3.5s cut the 4.5s death clip off mid-fall.
             Destroy(gameObject, Avatar != null && killed ? HiveAvatar.DeathSequenceSeconds : 0f);
+        }
+
+        private IEnumerator ReturnAfterDeath(float seconds)
+        {
+            yield return new WaitForSeconds(Mathf.Max(0.01f, seconds));
+            if (this != null && dying) EnemyFactory.ReturnToPool(this);
         }
 
         public static Enemy Nearest(Vector3 point, float maxDistance, Enemy exclude = null, ICollection<Enemy> excludeSet = null)

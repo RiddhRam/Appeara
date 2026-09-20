@@ -1,5 +1,21 @@
 # Enemy animation: audit and plan
 
+## Implemented September 20
+
+The audit below describes the starting state. Ordinary enemies now wind up for 0.45 seconds, damage the core,
+and recover for 0.75 seconds before attacking again. Stun cancels the pending attack. Armored and Shielded
+play a 0.9-second procedural collapse before pooling; Grunt holds for its authored death. Dead bodies stop
+counting toward the wave and stop accepting hits immediately. Swarm keeps its immediate particle death.
+
+The four requested Mixamo FBXs supplied by the user are imported and wired into GruntRig and SwarmRig.
+Use **Armory > Art > Configure Mixamo Enemy Animations** to repeat setup. Running alone loops; root motion
+is baked and gameplay retains movement control. The downloads use their own valid humanoid avatars for
+retargeting because their skeleton hierarchy differs from AlienMonster's. Attack playback fits the combat
+cycle; Hit and Die use their authored clips. Moving remains the locomotion bool.
+
+Validated: Unity compilation, 293 passing EditMode tests (three existing WeaponMesh normalization failures),
+retargeted attack/death poses, and Play Mode attack/death/pool reuse checks. See `tasks/enemy-animation-progress.md`.
+
 Written from the actual assets on `armory-vr`, not from the asset order. Every rig type below is read off the
 FBX `.meta` `animationType` field (`2` = Generic, `3` = Humanoid), and every clip listed is one that exists.
 
