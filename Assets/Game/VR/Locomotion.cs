@@ -4,21 +4,17 @@ using UnityEngine;
 namespace Armory
 {
     /// <summary>
-    /// A translocator pad. Stand on it and it charges, then moves the player to its linked pad. Place and move
-    /// these freely in the scene; ArmoryGame links them in pairs across the arena if nothing is set.
+    /// A speed pad. Stand on it to boost movement; pads can be placed freely around the arena.
     /// </summary>
     public sealed class TeleportPad : MonoBehaviour
     {
         public static readonly List<TeleportPad> All = new List<TeleportPad>();
-        public const float ChargeSeconds = 0.7f;
         public const float StandRadius = 1.1f;
-
-        [Tooltip("Where standing on this pad sends the player. Left empty, ArmoryGame pairs pads across the arena.")]
-        public TeleportPad Linked;
+        [Tooltip("Movement multiplier while the player is standing on this pad.")]
+        public float SpeedMultiplier = 3f;
 
         private Renderer ring;
         private Material ringMaterial;
-        private LineRenderer arc;
 
         private void OnEnable() => All.Add(this);
         private void OnDisable() => All.Remove(this);
@@ -29,26 +25,11 @@ namespace Armory
                 Mats.Glow(new Color(0.15f, 0.6f, 0.9f), 0.7f), name: "Pad Ring").GetComponent<Renderer>();
             ringMaterial = new Material(Shader.Find("Armory/HudBar"));
             ringMaterial.SetFloat("_Segments", 24f);
-            ringMaterial.SetColor("_On", new Color(0.3f, 1f, 0.6f));
+            ringMaterial.SetColor("_On", new Color(1f, 0.75f, 0.15f));
             ringMaterial.SetColor("_Off", new Color(0.12f, 0.45f, 0.7f, 0.5f));
             var charge = Mats.Shape(PrimitiveType.Quad, transform, new Vector3(0f, 0.03f, 0f), new Vector3(2.2f, 2.2f, 1f), ringMaterial, name: "Charge Ring");
             charge.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            SetCharge(0f);
-        }
-
-        private void Start()
-        {
-            if (Linked == null) return;
-            // A thin light arc between paired pads shows where each one leads.
-            arc = Mats.Line(transform, new Color(0.25f, 0.8f, 1f, 0.5f), 0.03f);
-            arc.positionCount = 14;
-            for (int i = 0; i < 14; i++)
-            {
-                float t = i / 13f;
-                Vector3 point = Vector3.Lerp(transform.position, Linked.transform.position, t);
-                point.y += Mathf.Sin(t * Mathf.PI) * 2.2f;
-                arc.SetPosition(i, point);
-            }
+            SetBoosted(false);
         }
 
         public bool IsStandingOn(Vector3 feet)
@@ -58,37 +39,23 @@ namespace Armory
             return delta.magnitude < StandRadius && Mathf.Abs(feet.y - transform.position.y) < 2.5f;
         }
 
-        public void SetCharge(float fraction)
+        public void SetBoosted(bool boosted)
         {
-            if (ringMaterial != null) ringMaterial.SetFloat("_Fill", Mathf.Clamp01(fraction));
+            if (ringMaterial != null) ringMaterial.SetFloat("_Fill", boosted ? 1f : 0f);
             if (ring != null)
-                ring.sharedMaterial = Mats.Glow(fraction > 0.01f ? new Color(0.3f, 1f, 0.6f) : new Color(0.15f, 0.6f, 0.9f), 0.7f);
+                ring.sharedMaterial = Mats.Glow(boosted ? new Color(1f, 0.75f, 0.15f) : new Color(0.15f, 0.6f, 0.9f), 0.7f);
         }
 
         private void OnDrawGizmos()
         {
             Gizmos.color = new Color(0.2f, 0.8f, 1f);
             Gizmos.DrawWireSphere(transform.position, StandRadius);
-            if (Linked != null) Gizmos.DrawLine(transform.position + Vector3.up, Linked.transform.position + Vector3.up);
-        }
-
-        public static TeleportPad Nearest(Vector3 point)
-        {
-            TeleportPad best = null;
-            float bestDistance = float.MaxValue;
-            foreach (var pad in All)
-            {
-                float d = (pad.transform.position - point).sqrMagnitude;
-                if (d < bestDistance) { bestDistance = d; best = pad; }
-            }
-            return best;
         }
     }
 
     /// <summary>
     /// Smooth locomotion: left stick walks (head-relative), left stick click engages the thruster sprint, right
-    /// stick snap-turns. Standing on a translocator pad for <see cref="TeleportPad.ChargeSeconds"/> moves the
-    /// player to its linked pad. A comfort vignette fades in while moving fast.
+    /// stick snap-turns. Standing on a speed pad grants a movement boost. A comfort vignette fades in while moving fast.
     /// </summary>
     public sealed class Locomotion : MonoBehaviour
     {
@@ -99,11 +66,9 @@ namespace Armory
         [Tooltip("Player stays within this distance of the arena centre.")]
         public float ArenaRadius = 34f;
 
-        private TeleportPad charging;
-        private float chargeTime;
-        private float cooldownUntil;
+        private TeleportPad activeSpeedPad;
+        private float padSpeedMultiplier = 1f;
         private bool turnLatched;
-        private bool wasXR;
         private Transform vignette;
         private Material vignetteMaterial;
 
@@ -112,7 +77,6 @@ namespace Armory
         private void Start()
         {
             BuildVignette();
-            if (TeleportPad.All.Count > 0) Place(TeleportPad.All[0]);
         }
 
         private void BuildVignette()
@@ -128,13 +92,11 @@ namespace Armory
         private void Update()
         {
             if (Rig == null) return;
-            if (Rig.IsXR && !wasXR && charging == null) Place(TeleportPad.Nearest(Rig.Head.transform.position));
-            wasXR = Rig.IsXR;
-            if (MissionDeck.Open) { SetVignette(0f); return; }
+            if (MissionDeck.Open) { SetSpeedPad(null); SetVignette(0f); return; }
 
+            UpdatePads();
             Move();
             SnapTurn();
-            UpdatePads();
         }
 
         private void Move()
@@ -150,11 +112,11 @@ namespace Armory
             forward.Normalize();
             Vector3 right = Vector3.Cross(Vector3.up, forward);
 
-            float speed = WalkSpeed * (Sprinting ? SprintMultiplier : 1f);
+            float speed = WalkSpeed * (Sprinting ? SprintMultiplier : 1f) * padSpeedMultiplier;
             Vector3 step = (forward * input.y + right * input.x) * (speed * Time.deltaTime);
             Rig.transform.position += step;
             ClampToArena();
-            SetVignette(Sprinting ? 0.5f : 0.22f);
+            SetVignette(Sprinting ? 0.5f : padSpeedMultiplier > 1f ? 0.4f : 0.22f);
         }
 
         private void ClampToArena()
@@ -193,36 +155,17 @@ namespace Armory
             Vector3 feet = Rig.FeetPosition;
             TeleportPad standing = null;
             foreach (var pad in TeleportPad.All)
-                if (pad.Linked != null && pad.IsStandingOn(feet)) { standing = pad; break; }
-
-            if (standing == null || Time.time < cooldownUntil)
-            {
-                if (charging != null) { charging.SetCharge(0f); charging = null; }
-                chargeTime = 0f;
-                return;
-            }
-            if (standing != charging) { if (charging != null) charging.SetCharge(0f); charging = standing; chargeTime = 0f; }
-
-            chargeTime += Time.deltaTime;
-            charging.SetCharge(chargeTime / TeleportPad.ChargeSeconds);
-            if (chargeTime < TeleportPad.ChargeSeconds) return;
-
-            var destination = charging.Linked;
-            charging.SetCharge(0f);
-            charging = null;
-            chargeTime = 0f;
-            cooldownUntil = Time.time + 1.2f;
-            Effects.Flash(feet + Vector3.up, new Color(0.3f, 1f, 0.6f), 2.5f);
-            Place(destination);
-            Effects.Flash(destination.transform.position + Vector3.up, new Color(0.3f, 1f, 0.6f), 2.5f);
+                if (pad.IsStandingOn(feet)) { standing = pad; break; }
+            SetSpeedPad(standing);
         }
 
-        private void Place(TeleportPad pad)
+        private void SetSpeedPad(TeleportPad pad)
         {
-            if (pad == null) return;
-            Vector3 outward = pad.transform.position - LookTarget;
-            Rig.TeleportTo(pad.transform.position, outward.sqrMagnitude > 0.01f ? outward : pad.transform.forward);
-            ProceduralSfx.PlayAt(ProceduralSfx.Blip, pad.transform.position, 0.6f);
+            if (activeSpeedPad == pad) return;
+            if (activeSpeedPad != null) activeSpeedPad.SetBoosted(false);
+            activeSpeedPad = pad;
+            padSpeedMultiplier = activeSpeedPad != null ? activeSpeedPad.SpeedMultiplier : 1f;
+            if (activeSpeedPad != null) activeSpeedPad.SetBoosted(true);
         }
     }
 }

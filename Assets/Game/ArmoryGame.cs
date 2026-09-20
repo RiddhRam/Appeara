@@ -8,7 +8,7 @@ namespace Armory
     /// <summary>
     /// Single scene entry point. Put this on one "Armory" object (Armory → Setup SpaceStation Scene does it).
     /// Builds the arena, core, rig, AI and wave systems at runtime so the scene file stays merge-friendly.
-    /// Child TeleportPads placed in the scene are used as-is; otherwise four default pads are created.
+    /// Child speed pads placed in the scene are used as-is; otherwise four default pads are created.
     /// Debug keys: N skip wave, R restart from wave 1.
     /// </summary>
     public sealed class ArmoryGame : MonoBehaviour
@@ -79,7 +79,6 @@ namespace Armory
             locomotion.transform.SetParent(transform, false);
             locomotion.Rig = Rig;
             locomotion.LookTarget = transform.position;
-            LinkPads();
 
             director = new GameObject("Wave Director").AddComponent<WaveDirector>();
             director.transform.SetParent(transform, false);
@@ -129,20 +128,11 @@ namespace Armory
         {
             for (int i = 0; i < 4; i++)
             {
-                var pad = new GameObject("Teleport Pad " + (i + 1));
+                var pad = new GameObject("Speed Pad " + (i + 1));
                 pad.transform.SetParent(transform, false);
                 pad.transform.localPosition = Quaternion.Euler(0f, 180f + i * 90f, 0f) * Vector3.forward * PadRadius;
                 pad.AddComponent<TeleportPad>();
             }
-        }
-
-        /// <summary>Pads with no explicit link translocate to the pad on the opposite side of the arena.</summary>
-        private void LinkPads()
-        {
-            var pads = GetComponentsInChildren<TeleportPad>();
-            for (int i = 0; i < pads.Length; i++)
-                if (pads[i].Linked == null && pads.Length > 1)
-                    pads[i].Linked = pads[(i + pads.Length / 2) % pads.Length];
         }
 
         /// <summary>Aliens within reach of the player claw at them; shields recover once you break away.</summary>

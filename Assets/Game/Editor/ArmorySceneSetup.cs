@@ -43,11 +43,11 @@ namespace Armory.Editor
             for (int i = root.transform.childCount - 1; i >= 0; i--)
             {
                 var child = root.transform.GetChild(i);
-                if (child.name.StartsWith("Teleport Pad") || child.GetComponent<TeleportPad>() != null) Object.DestroyImmediate(child.gameObject);
+                if (child.name.StartsWith("Teleport Pad") || child.name.StartsWith("Speed Pad") || child.GetComponent<TeleportPad>() != null) Object.DestroyImmediate(child.gameObject);
             }
             for (int i = 0; i < 4; i++)
             {
-                var pad = new GameObject("Teleport Pad " + (i + 1));
+                var pad = new GameObject("Speed Pad " + (i + 1));
                 pad.transform.SetParent(root.transform, false);
                 pad.transform.localPosition = Quaternion.Euler(0f, 180f + i * 90f, 0f) * Vector3.forward * game.PadRadius;
                 pad.AddComponent<TeleportPad>();
