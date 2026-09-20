@@ -626,6 +626,10 @@
       <HintPath>/Applications/Unity/Hub/Editor/6000.3.13f1/PlaybackEngines/iOSSupport/UnityEditor.iOS.Extensions.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Sentry">
+      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Runtime/Sentry.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="TextMateSharpPlastic">
       <HintPath>Library/PackageCache/com.unity.collab-proxy@0b1559bcd34e/Lib/Editor/TextMateSharp/TextMateSharpPlastic.dll</HintPath>
       <Private>False</Private>
@@ -646,8 +650,32 @@
       <HintPath>Library/PackageCache/com.unity.ext.nunit@d8c07649098d/net40/unity-custom/nunit.framework.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Sentry.Microsoft.Bcl.AsyncInterfaces">
+      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Runtime/Sentry.Microsoft.Bcl.AsyncInterfaces.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Sentry.Mono.Cecil.Pdb">
+      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Editor/Sentry.Mono.Cecil.Pdb.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Sentry.System.Text.Json">
+      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Runtime/Sentry.System.Text.Json.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Sentry.Microsoft.Extensions.FileSystemGlobbing">
+      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Editor/Sentry.Microsoft.Extensions.FileSystemGlobbing.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Sentry.Unity">
+      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Runtime/Sentry.Unity.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Unity.Plastic.Antlr3.Runtime">
       <HintPath>Library/PackageCache/com.unity.collab-proxy@0b1559bcd34e/Lib/Editor/Unity.Plastic.Antlr3.Runtime.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Sentry.System.Reflection.Metadata">
+      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Runtime/Sentry.System.Reflection.Metadata.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="OnigwrapPlastic">
@@ -662,6 +690,10 @@
       <HintPath>Library/PackageCache/com.unity.collab-proxy@0b1559bcd34e/Lib/Editor/log4netPlastic.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Sentry.Mono.Cecil.Mdb">
+      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Editor/Sentry.Mono.Cecil.Mdb.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Unity.VisualScripting.IonicZip">
       <HintPath>Library/PackageCache/com.unity.visualscripting@8bed5ad90189/Editor/VisualScripting.Core/Dependencies/DotNetZip/Unity.VisualScripting.IonicZip.dll</HintPath>
       <Private>False</Private>
@@ -674,12 +706,36 @@
       <HintPath>Library/PackageCache/com.unity.collab-proxy@0b1559bcd34e/Lib/Editor/unityplastic.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Sentry.Mono.Cecil">
+      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Editor/Sentry.Mono.Cecil.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Sentry.Mono.Cecil.Rocks">
+      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Editor/Sentry.Mono.Cecil.Rocks.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Unity.VisualScripting.Antlr3.Runtime">
       <HintPath>Library/PackageCache/com.unity.visualscripting@8bed5ad90189/Runtime/VisualScripting.Flow/Dependencies/NCalc/Unity.VisualScripting.Antlr3.Runtime.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Sentry.System.Runtime.CompilerServices.Unsafe">
+      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Runtime/Sentry.System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Sentry.Unity.Editor.iOS">
+      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Editor/iOS/Sentry.Unity.Editor.iOS.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Sentry.System.Collections.Immutable">
+      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Runtime/Sentry.System.Collections.Immutable.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>Library/PackageCache/com.unity.nuget.newtonsoft-json@4dfd81071c64/Runtime/Newtonsoft.Json.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="AiEditorToolsSdk">
+      <HintPath>Library/PackageCache/com.unity.ai.assistant@8d1e3e89e3a7/Modules/Unity.AI.Toolkit.Sdk/Editor/AiEditorToolsSdk.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.VisualScripting.TextureAssets">
@@ -694,68 +750,12 @@
       <HintPath>Library/PackageCache/com.unity.collections@12999e356c23/Unity.Collections.Tests/System.Runtime.CompilerServices.Unsafe/System.Runtime.CompilerServices.Unsafe.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="AiEditorToolsSdk">
-      <HintPath>Library/PackageCache/com.unity.ai.assistant@8d1e3e89e3a7/Modules/Unity.AI.Toolkit.Sdk/Editor/AiEditorToolsSdk.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sentry.Unity.Editor">
-      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Editor/Sentry.Unity.Editor.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sentry.Mono.Cecil">
-      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Editor/Sentry.Mono.Cecil.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sentry.Microsoft.Bcl.AsyncInterfaces">
-      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Runtime/Sentry.Microsoft.Bcl.AsyncInterfaces.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sentry.Mono.Cecil.Pdb">
-      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Editor/Sentry.Mono.Cecil.Pdb.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sentry.System.Collections.Immutable">
-      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Runtime/Sentry.System.Collections.Immutable.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="Sentry.System.Text.Encodings.Web">
       <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Runtime/Sentry.System.Text.Encodings.Web.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Sentry.Microsoft.Extensions.FileSystemGlobbing">
-      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Editor/Sentry.Microsoft.Extensions.FileSystemGlobbing.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sentry.System.Reflection.Metadata">
-      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Runtime/Sentry.System.Reflection.Metadata.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sentry.Unity.Editor.iOS">
-      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Editor/iOS/Sentry.Unity.Editor.iOS.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sentry.System.Text.Json">
-      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Runtime/Sentry.System.Text.Json.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sentry">
-      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Runtime/Sentry.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sentry.Unity">
-      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Runtime/Sentry.Unity.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sentry.System.Runtime.CompilerServices.Unsafe">
-      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Runtime/Sentry.System.Runtime.CompilerServices.Unsafe.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sentry.Mono.Cecil.Mdb">
-      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Editor/Sentry.Mono.Cecil.Mdb.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Sentry.Mono.Cecil.Rocks">
-      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Editor/Sentry.Mono.Cecil.Rocks.dll</HintPath>
+    <Reference Include="Sentry.Unity.Editor">
+      <HintPath>Library/PackageCache/io.sentry.unity@50beaefa3a25/Editor/Sentry.Unity.Editor.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEditor.iOS.Extensions.Xcode">
@@ -1290,12 +1290,12 @@
       <HintPath>Library/ScriptAssemblies/UnityEngine.TestRunner.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="UnityEngine.UI">
-      <HintPath>Library/ScriptAssemblies/UnityEngine.UI.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="UnityEditor.UI">
       <HintPath>Library/ScriptAssemblies/UnityEditor.UI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>Library/ScriptAssemblies/UnityEngine.UI.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>

@@ -117,25 +117,31 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
 
         [Serializable] private sealed class ImageResponse { public ImageData[] data; }
         [Serializable] private sealed class ImageData { public string b64_json; }
+        private const float ImageTimeoutSeconds = 35f;
+        private bool imagePromptRejected;
 
         /// <summary>
         /// Blueprint art for a weapon. Framed as whimsical game-prop concept art: literal "weapon schematic" prompts
         /// are (reasonably) refused by the image safety system. Retries once with a nameless prompt if refused.
         /// </summary>
-        public async Awaitable<byte[]> GenerateBlueprint(string weaponName, string colorName, string flavour, FabricationTrace trace = null)
+        public async Awaitable<byte[]> GenerateBlueprint(string weaponName, string designPrompt, FireMode fireMode, Payload payload, string colorName, string flavour, FabricationTrace trace = null)
         {
             var span = trace?.StartSpan("openai.image", "Generate weapon blueprint");
-            string style = " Side view line drawing in glowing cyan and white lines on a solid black background, decorative grid, " +
-                           "made-up annotation labels and cute stat bars, stylized and cartoonish, like a game UI hologram.";
+            string design = DesignDirection(designPrompt, fireMode, payload);
+            string style = " Show one readable side-view silhouette facing right, constructed from 8 to 16 large simple forms. " +
+                           "Use a charcoal structure, one coloured shell, and the specified emissive energy accent. Every component connects to the main body. " +
+                           "No floating pieces, fine tubing, tiny greebles, or intricate shapes. Keep labels and callouts outside the prop. " +
+                           "Glowing cyan and white blueprint lines on a solid black background, decorative grid, cute stat bars, stylized and cartoonish game UI hologram.";
             string prompt = $"Holographic blueprint-style concept art for a whimsical sci-fi video game prop called '{weaponName}': " +
-                           $"a chunky, toy-like retro-futuristic gadget with glowing {colorName} energy cells and playful rounded shapes, {flavour}." + style;
+                           $"a readable stylized retro-futuristic prop with glowing {colorName} energy cells, {flavour}. {design}." + style;
             try
             {
                 span?.SetTag("ai.model", settings.ImageModel);
                 var png = await Image(prompt, span);
                 if (png != null) return png;
+                if (!imagePromptRejected) return null;
                 span?.SetTag("image.retry", "safety_fallback");
-                string fallback = $"Holographic blueprint-style concept art of a whimsical, toy-like retro-futuristic sci-fi gadget with glowing {colorName} energy cells." + style;
+                string fallback = $"Holographic blueprint-style concept art of a stylized retro-futuristic sci-fi gadget with glowing {colorName} energy cells. {design}." + style;
                 return await Image(fallback, span);
             }
             catch (Exception error) { trace?.FinishSpan(span, error); throw; }
@@ -159,6 +165,7 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
                 span?.SetTag("ai.model", settings.ImageModel);
                 var png = await Image(prompt, span, transparent: true);
                 if (png != null) return png;
+                if (!imagePromptRejected) return null;
                 span?.SetTag("image.retry", "safety_fallback");
                 string fallback = $"Game asset sprite of a whimsical, toy-like retro-futuristic sci-fi gadget with glowing {colorName} energy cells." + style;
                 return await Image(fallback, span, transparent: true);
@@ -172,10 +179,11 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
             "and you rebuild it as real geometry out of simple primitives. Return a parts list only. " +
             "Axes, in metres: +Z points forward out of the barrel, +Y is up, +X is right. The grip sits near the origin; " +
             "the weapon extends forward to at most 0.6 m, and stays within 0.22 m left-right and 0.3 m up-down. " +
-            "Use 8 to 20 parts. Match the blueprint silhouette: barrel count and length, magazine, drum, tanks, fins, " +
-            "sights, stock, grip angle. shape is box, cylinder, sphere, capsule, cone or disc. Cylinders and cones point " +
+            "Use 8 to 20 substantial parts. Preserve the dominant silhouette, grip and emitter; ignore labels and tiny blueprint detail. " +
+            "Every part must visibly touch or overlap the main body: never create floating decorations. Use clean rotations in 15-degree increments " +
+            "and make every dimension at least 0.01 m. shape is box, cylinder, sphere, capsule, cone or disc. Cylinders and cones point " +
             "along their own Y axis, so set rx to 90 to lay one along the barrel. Scale is the full size of the part. " +
-            "color is a hex string taken from the blueprint; glow is true only for energy cells, emitters and lights. " +
+            "Use dark charcoal structure, one coloured shell and one bright accent. glow is true only for at most four energy cells, emitters or lights. " +
             "muzzle is the point the shot leaves, at the very front of the barrel.";
 
         private static readonly string MeshSchema =
@@ -190,25 +198,78 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
             "\"muzzleX\":{\"type\":\"number\"},\"muzzleY\":{\"type\":\"number\"},\"muzzleZ\":{\"type\":\"number\"}}}";
 
         /// <summary>Reads the blueprint it just produced and returns the weapon as primitives Unity can build.</summary>
-        public async Awaitable<string> DescribeWeaponMesh(string weaponName, string traits, byte[] blueprintPng, FabricationTrace trace = null)
+        public async Awaitable<string> DescribeWeaponMesh(string weaponName, string designPrompt, FireMode fireMode, Payload payload, string traits, byte[] blueprintPng, FabricationTrace trace = null)
         {
-            string user = $"Weapon: {weaponName}. Traits: {traits}. Rebuild the weapon in the blueprint as primitives.";
+            string user = $"Weapon: {weaponName}. Player concept: {designPrompt}. Traits: {traits}. {DesignDirection(designPrompt, fireMode, payload)}. Rebuild the weapon in the blueprint as primitives.";
             string image = blueprintPng != null ? Convert.ToBase64String(blueprintPng) : null;
             return await Chat(settings.WeaponModel, MeshSystemPrompt, user, "weapon_mesh", MeshSchema, settings.WeaponTimeoutSeconds,
                 trace, "openai.weapon_mesh", image);
         }
 
+        private static string DesignDirection(string weaponName, FireMode fireMode, Payload payload) =>
+            ArchetypeDirection(weaponName, fireMode, payload) + ". " + ShapeLanguage(weaponName);
+
+        private static string ArchetypeDirection(string weaponName, FireMode fireMode, Payload payload)
+        {
+            string name = weaponName?.ToLowerInvariant() ?? "";
+            if (name.Contains("pistol") || name.Contains("handgun") || name.Contains("sidearm") || name.Contains("revolver"))
+                return "Use a compact one-handed pistol silhouette: short barrel, small receiver, distinct angled grip, no shoulder stock and no oversized front tube";
+            if (name.Contains("launcher") || name.Contains("bazooka") || name.Contains("rocket") || name.Contains("cannon") || name.Contains("mortar"))
+                return "Use a long heavy launcher silhouette dominated by one oversized hollow forward tube, a substantial payload chamber, rear shoulder stock and a small grip beneath the body; never add a rifle magazine, thin barrel or machine-gun barrel cluster";
+            if (name.Contains("machine gun") || name.Contains("machinegun") || name.Contains("minigun") || name.Contains("gatling"))
+                return "Use a long low machine-gun silhouette with a narrow barrel or barrel cluster, rectangular receiver, obvious box or drum magazine, rear stock and forward support; never use one oversized hollow launcher tube";
+
+            switch (fireMode)
+            {
+                case FireMode.Beam: return "Build a continuous-energy tool with a clear grip, focusing chamber and forward emitter";
+                case FireMode.Thrown: return "Build a compact hand-held device with an obvious grasp area, payload body and forward or upward detonator";
+                case FireMode.Melee: return "Build a balanced hand weapon with a clear hilt, guard and blade or striking head; do not add a gun barrel";
+                case FireMode.Bow: return "Build a bow-like hand weapon with a central grip, two readable limbs and an energy nock; do not turn it into a rifle";
+                default: return payload == Payload.Explosive
+                    ? "Build a shoulder-fired explosive launcher with a large bore, long payload body and rear stock; avoid a compact pistol silhouette"
+                    : "Build a readable ranged tool with a clear grip, main body and forward muzzle; let the weapon name determine whether it is compact, rifle-length or heavy";
+            }
+        }
+
+        /// <summary>A stable name-derived art direction adds variety without changing between repeated generations.</summary>
+        private static string ShapeLanguage(string weaponName)
+        {
+            int hash = 17;
+            foreach (char character in (weaponName ?? "weapon").ToLowerInvariant())
+                hash = unchecked(hash * 31 + character);
+
+            switch ((hash & int.MaxValue) % 5)
+            {
+                case 0:
+                    return "Rounded orbital design language: spheres, capsules, a circular energy core and a soft continuous silhouette; avoid fins and boxy rails";
+                case 1:
+                    return "Angular wedge design language: stepped box forms, tapered cones and two bold fins creating a sharp triangular silhouette; avoid round central bodies";
+                case 2:
+                    return "Industrial tubular design language: one dominant cylinder, exposed tanks and thick collar rings with a practical heavy silhouette";
+                case 3:
+                    return "Skeletal rail design language: two separated parallel rails, deliberate open gaps and a slim energy core joined by a few strong bridge pieces";
+                default:
+                    return "Connected asymmetric design language: one large side-mounted cell or drum and an offset top module producing an intentionally uneven silhouette";
+            }
+        }
+
         private async Awaitable<byte[]> Image(string prompt, Sentry.ISpan span = null, bool transparent = false)
         {
+            imagePromptRejected = false;
             string body = "{\"model\":" + Http.Quote(settings.ImageModel) + ",\"prompt\":" + Http.Quote(prompt) +
                           ",\"size\":\"1024x1024\",\"quality\":" + Http.Quote(settings.ImageQuality) + ",\"n\":1" +
                           (transparent ? ",\"background\":\"transparent\",\"output_format\":\"png\"" : "") + "}";
             var request = Http.PostJson(Api("/images/generations"), body);
             Authorize(request);
-            var result = await Http.Send(request, 60f, span, settings.UsesGateway);
+            var result = await Http.Send(request, ImageTimeoutSeconds, span, settings.UsesGateway);
             span?.SetTag("http.status_code", result.Code.ToString());
             if (!result.Ok)
             {
+                string response = result.Text ?? "";
+                imagePromptRejected = result.Code == 400 &&
+                    (response.IndexOf("safety", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     response.IndexOf("content_policy", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     response.IndexOf("moderation", StringComparison.OrdinalIgnoreCase) >= 0);
                 LastError = $"Image {result.Code}: {Truncate(result.Text)}";
                 Debug.LogWarning(LastError);
                 return null;

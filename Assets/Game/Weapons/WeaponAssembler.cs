@@ -50,9 +50,9 @@ namespace Armory
         public static void ApplyGeneratedMesh(Weapon weapon, System.Collections.Generic.List<MeshPart> parts, Vector3 muzzle)
         {
             if (weapon == null || parts == null || parts.Count == 0) return;
-            // Orients as well as scales: the model's idea of "forward" is not reliable, so the weapon's own
-            // geometry decides which way the barrel points before it is put in the hand.
-            WeaponMesh.Fit(parts, ref muzzle);
+            WeaponMesh.Normalize(parts, ref muzzle, WeaponMesh.TargetLengthFor(weapon.Spec));
+            WeaponMesh.ApplyArchetypeSignature(parts, weapon.Spec, ref muzzle);
+            WeaponMesh.Polish(parts, weapon.Spec != null ? weapon.Spec.Color : Color.cyan);
             var old = weapon.transform.Find("Parts");
             if (old != null) Object.Destroy(old.gameObject);
 

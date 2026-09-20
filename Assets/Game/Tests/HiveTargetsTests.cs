@@ -246,5 +246,128 @@ namespace Armory.Tests
             Assert.IsEmpty(WeaponMesh.Parse("not json", Color.white, out _));
             Assert.IsEmpty(WeaponMesh.Parse("", Color.white, out _));
         }
+
+        [Test]
+        public void PolishSnapsCleansAndRestrainsGeneratedParts()
+        {
+            var accent = new Color(1f, 0.25f, 0.1f, 1f);
+            var parts = new List<MeshPart>();
+            for (int i = 0; i < 5; i++)
+            {
+                parts.Add(new MeshPart
+                {
+                    Shape = PartShape.Sphere,
+                    Rotation = new Vector3(7f + i, 22f, 353f),
+                    Scale = Vector3.one * (0.02f + i * 0.005f),
+                    Color = Color.white,
+                    Glow = true,
+                });
+            }
+            parts.Add(new MeshPart { Shape = PartShape.Box, Scale = Vector3.one * 0.04f, Color = Color.black });
+            parts.Add(new MeshPart { Shape = PartShape.Box, Scale = Vector3.one * 0.04f, Color = Color.white });
+            parts.Add(new MeshPart { Shape = PartShape.Box, Scale = Vector3.one * 0.004f, Color = Color.white });
+
+            WeaponMesh.Polish(parts, accent);
+
+            Assert.AreEqual(7, parts.Count, "Tiny decorative part should be removed");
+            Assert.AreEqual(4, parts.FindAll(part => part.Glow).Count, "Only four largest glow parts should remain emissive");
+            Assert.IsFalse(parts[0].Glow, "Smallest glow part should be demoted");
+            foreach (var part in parts)
+            {
+                Assert.AreEqual(0f, Mathf.Repeat(part.Rotation.x, 15f), 0.001f);
+                Assert.AreEqual(0f, Mathf.Repeat(part.Rotation.y, 15f), 0.001f);
+                Assert.AreEqual(0f, Mathf.Repeat(part.Rotation.z, 15f), 0.001f);
+            }
+
+            Color structure = new Color(0.08f, 0.09f, 0.12f, 1f);
+            Color shell = Color.Lerp(structure, accent, 0.45f);
+            Color energy = Color.Lerp(accent, Color.white, 0.18f);
+            foreach (var part in parts)
+                Assert.IsTrue(SameColor(part.Color, structure) || SameColor(part.Color, shell) || SameColor(part.Color, energy));
+        }
+
+        [Test]
+        public void PolishNeverRemovesEveryPart()
+        {
+            var parts = new List<MeshPart>
+            {
+                new MeshPart { Scale = Vector3.one * 0.002f, Color = Color.white },
+                new MeshPart { Scale = Vector3.one * 0.003f, Color = Color.white },
+            };
+
+            WeaponMesh.Polish(parts, Color.cyan);
+
+            Assert.AreEqual(1, parts.Count);
+        }
+
+        [Test]
+        public void TargetLengthSeparatesPistolsFromLaunchers()
+        {
+            var pistol = new ParsedWeapon { Name = "Pocket Plasma Pistol", FireMode = FireMode.Projectile, Payload = Payload.Plasma };
+            var launcher = new ParsedWeapon { Name = "Party Rocket Launcher", FireMode = FireMode.Projectile, Payload = Payload.Explosive };
+
+            Assert.AreEqual(0.30f, WeaponMesh.TargetLengthFor(pistol), 0.001f);
+            Assert.AreEqual(0.56f, WeaponMesh.TargetLengthFor(launcher), 0.001f);
+            Assert.Greater(WeaponMesh.TargetLengthFor(launcher), WeaponMesh.TargetLengthFor(pistol) * 1.8f);
+        }
+
+        [Test]
+        public void TargetLengthUsesOriginalPromptWhenModelInventsAName()
+        {
+            var machineGun = new ParsedWeapon
+            {
+                Name = "Rattlejack",
+                DesignPrompt = "Make me a machine gun",
+                FireMode = FireMode.Projectile,
+                Payload = Payload.Kinetic,
+            };
+            var launcher = new ParsedWeapon
+            {
+                Name = "Rattlejack",
+                DesignPrompt = "Make me a rocket launcher",
+                FireMode = FireMode.Projectile,
+                Payload = Payload.Explosive,
+            };
+
+            Assert.AreEqual(0.48f, WeaponMesh.TargetLengthFor(machineGun), 0.001f);
+            Assert.AreEqual(0.56f, WeaponMesh.TargetLengthFor(launcher), 0.001f);
+        }
+
+        [Test]
+        public void ArchetypeSignaturesForceMachineGunAndLauncherApart()
+        {
+            var machineParts = new List<MeshPart>
+            {
+                new MeshPart { Shape = PartShape.Box, Scale = new Vector3(0.1f, 0.1f, 0.3f), Color = Color.white },
+            };
+            var launcherParts = new List<MeshPart>
+            {
+                new MeshPart { Shape = PartShape.Box, Scale = new Vector3(0.1f, 0.1f, 0.3f), Color = Color.white },
+            };
+            Vector3 machineMuzzle = Vector3.zero, launcherMuzzle = Vector3.zero;
+
+            WeaponMesh.ApplyArchetypeSignature(machineParts,
+                new ParsedWeapon { Name = "Rattlejack", DesignPrompt = "A machine gun" }, ref machineMuzzle);
+            WeaponMesh.ApplyArchetypeSignature(launcherParts,
+                new ParsedWeapon { Name = "Rattlejack", DesignPrompt = "A rocket launcher" }, ref launcherMuzzle);
+
+            Assert.AreEqual(3, machineParts.FindAll(part => part.Shape == PartShape.Cylinder).Count);
+            Assert.AreEqual(1, machineParts.FindAll(part => part.Shape == PartShape.Box && part.Scale.y >= 0.15f).Count);
+            Assert.AreEqual(1, launcherParts.FindAll(part => part.Shape == PartShape.Cylinder && part.Scale.y >= 0.44f).Count);
+            Assert.AreEqual(1, launcherParts.FindAll(part => part.Shape == PartShape.Disc).Count);
+            Assert.AreNotEqual(machineMuzzle.z, launcherMuzzle.z);
+        }
+
+        [Test]
+        public void TargetLengthGivesEachPhysicalModeAReadableScale()
+        {
+            Assert.AreEqual(0.22f, WeaponMesh.TargetLengthFor(new ParsedWeapon { Name = "Mine", FireMode = FireMode.Thrown }), 0.001f);
+            Assert.AreEqual(0.64f, WeaponMesh.TargetLengthFor(new ParsedWeapon { Name = "Sword", FireMode = FireMode.Melee }), 0.001f);
+            Assert.AreEqual(0.58f, WeaponMesh.TargetLengthFor(new ParsedWeapon { Name = "Longbow", FireMode = FireMode.Bow }), 0.001f);
+        }
+
+        private static bool SameColor(Color a, Color b) =>
+            Mathf.Abs(a.r - b.r) < 0.001f && Mathf.Abs(a.g - b.g) < 0.001f &&
+            Mathf.Abs(a.b - b.b) < 0.001f && Mathf.Abs(a.a - b.a) < 0.001f;
     }
 }

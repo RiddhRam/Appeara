@@ -48,6 +48,29 @@ namespace Armory.Core
         /// <summary>Parsing keeps proportions in the model's own units; only sanity bounds are applied here.</summary>
         public const float MaxCoordinate = 50f;
         public const float MinPart = 0.001f;
+        public const float MinPolishedPart = 0.008f;
+        public const int MaxGlowParts = 4;
+
+        private static readonly Color StructureColor = new Color(0.08f, 0.09f, 0.12f, 1f);
+
+        /// <summary>Readable held scale by silhouette, without requiring another field in the model schema.</summary>
+        public static float TargetLengthFor(ParsedWeapon weapon)
+        {
+            if (weapon == null) return TargetLength;
+            string description = string.IsNullOrWhiteSpace(weapon.DesignPrompt) ? weapon.Name : weapon.DesignPrompt;
+            if (NameContains(description, "pistol", "handgun", "sidearm", "revolver")) return 0.30f;
+            if (NameContains(description, "launcher", "bazooka", "rocket", "cannon", "mortar")) return 0.56f;
+            if (NameContains(description, "machine gun", "machinegun", "minigun", "gatling")) return 0.48f;
+
+            switch (weapon.FireMode)
+            {
+                case FireMode.Thrown: return 0.22f;
+                case FireMode.Melee: return 0.64f;
+                case FireMode.Bow: return 0.58f;
+                case FireMode.Beam: return 0.50f;
+                default: return weapon.Payload == Payload.Explosive ? 0.54f : TargetLength;
+            }
+        }
 
         public static List<MeshPart> Parse(string json, Color fallbackColor, out Vector3 muzzle)
         {
@@ -166,111 +189,98 @@ namespace Armory.Core
             if (muzzle.z < 0.05f) muzzle.z = Furthest(parts);
         }
 
-        public static void Bounds(List<MeshPart> parts, out Vector3 min, out Vector3 max)
+        /// <summary>
+        /// Applies the station's shared visual language after normalization: clean angles, readable pieces, a
+        /// restrained amount of emission, and a three-colour palette derived from the requested weapon colour.
+        /// </summary>
+        public static void Polish(List<MeshPart> parts, Color accent)
         {
-            min = Vector3.positiveInfinity;
-            max = Vector3.negativeInfinity;
-            foreach (var part in parts)
-            {
-                min = Vector3.Min(min, part.Position - part.Scale * 0.5f);
-                max = Vector3.Max(max, part.Position + part.Scale * 0.5f);
-            }
-        }
+            if (parts == null || parts.Count == 0) return;
 
-        /// <summary>Where the hand closes: the centre of whatever hangs below the weapon's mass, else its middle.</summary>
-        private static float GripHeight(List<MeshPart> parts, float centreY)
-        {
-            float weighted = 0f, total = 0f;
+            MeshPart largest = parts[0];
             foreach (var part in parts)
             {
-                if (part.Position.y >= centreY) continue;
-                float volume = Mathf.Max(Volume(part), 1e-6f);
-                weighted += part.Position.y * volume;
-                total += volume;
+                if (LargestDimension(part) > LargestDimension(largest)) largest = part;
+                part.Rotation = new Vector3(SnapAngle(part.Rotation.x), SnapAngle(part.Rotation.y), SnapAngle(part.Rotation.z));
             }
-            return total > 0f ? weighted / total : centreY;
+
+            // Keep at least one part even when a pathological response consists entirely of tiny details.
+            for (int i = parts.Count - 1; i >= 0; i--)
+                if (parts[i] != largest && LargestDimension(parts[i]) < MinPolishedPart)
+                    parts.RemoveAt(i);
+
+            var glowing = parts.FindAll(part => part.Glow);
+            glowing.Sort((a, b) => Volume(b).CompareTo(Volume(a)));
+            for (int i = MaxGlowParts; i < glowing.Count; i++) glowing[i].Glow = false;
+
+            accent.a = 1f;
+            Color shell = Color.Lerp(StructureColor, accent, 0.45f);
+            shell.a = 1f;
+            Color energy = Color.Lerp(accent, Color.white, 0.18f);
+            energy.a = 1f;
+            foreach (var part in parts)
+            {
+                if (part.Glow) part.Color = energy;
+                else part.Color = part.Color.maxColorComponent >= 0.45f ? shell : StructureColor;
+            }
         }
 
         /// <summary>
-        /// Which way the weapon points. A muzzle is the model saying where the shot leaves, and that is better
-        /// evidence of forward than length is: a pistol is very nearly as tall as it is long, so picking the
-        /// biggest principal axis hands the job to the grip and the gun comes out aimed at the floor. The muzzle
-        /// only selects among the weapon's own axes though - it never becomes the aim direction itself, so a
-        /// carelessly placed one tilts nothing.
+        /// Adds a few unmistakable category-defining forms after the vision model's reconstruction. This prevents
+        /// visually different blueprints from collapsing into the same generic primitive gun.
         /// </summary>
-        private static Vector3 ForwardAxis(List<MeshPart> parts, Vector3 centre, Vector3 muzzle, Vector3 first, Vector3 second, Vector3 third)
+        public static void ApplyArchetypeSignature(List<MeshPart> parts, ParsedWeapon weapon, ref Vector3 muzzle)
         {
-            Vector3 toMuzzle = muzzle - centre;
-            if (toMuzzle.magnitude > Reach(parts, centre) * 0.15f)
+            if (parts == null || weapon == null) return;
+            string description = string.IsNullOrWhiteSpace(weapon.DesignPrompt) ? weapon.Name : weapon.DesignPrompt;
+
+            if (NameContains(description, "launcher", "bazooka", "rocket", "cannon", "mortar"))
             {
-                Vector3 direction = toMuzzle.normalized;
-                Vector3 best = first;
-                float bestAlignment = Mathf.Abs(Vector3.Dot(first, direction));
-                foreach (var axis in new[] { second, third })
+                MakeRoom(parts, 2);
+                parts.Add(new MeshPart
                 {
-                    float alignment = Mathf.Abs(Vector3.Dot(axis, direction));
-                    if (alignment > bestAlignment) { bestAlignment = alignment; best = axis; }
+                    Shape = PartShape.Cylinder,
+                    Position = new Vector3(0f, 0.025f, 0.28f),
+                    Rotation = new Vector3(90f, 0f, 0f),
+                    Scale = new Vector3(0.14f, 0.44f, 0.14f),
+                    Color = Color.white,
+                });
+                parts.Add(new MeshPart
+                {
+                    Shape = PartShape.Disc,
+                    Position = new Vector3(0f, 0.025f, 0.51f),
+                    Rotation = new Vector3(90f, 0f, 0f),
+                    Scale = new Vector3(0.18f, 0.035f, 0.18f),
+                    Color = Color.black,
+                });
+                muzzle = new Vector3(0f, 0.025f, 0.53f);
+                return;
+            }
+
+            if (NameContains(description, "machine gun", "machinegun", "minigun", "gatling"))
+            {
+                MakeRoom(parts, 4);
+                for (int i = -1; i <= 1; i++)
+                {
+                    parts.Add(new MeshPart
+                    {
+                        Shape = PartShape.Cylinder,
+                        Position = new Vector3(i * 0.028f, 0.025f, 0.37f),
+                        Rotation = new Vector3(90f, 0f, 0f),
+                        Scale = new Vector3(0.024f, 0.23f, 0.024f),
+                        Color = Color.black,
+                    });
                 }
-                if (Vector3.Dot(best, direction) < 0f) best = -best;
-                // Where the two agree, take the muzzle exactly. The principal axis of a weapon with a fat drum
-                // or a heavy stock sits a few degrees off the barrel it is meant to describe, and those few
-                // degrees are the difference between a barrel that points at the crosshair and one that does
-                // not. Disagreement beyond the cone means the muzzle is junk, and the geometry wins.
-                return Vector3.Angle(direction, best) <= MuzzleTrustDegrees ? direction : best;
+                parts.Add(new MeshPart
+                {
+                    Shape = PartShape.Box,
+                    Position = new Vector3(0f, -0.075f, 0.13f),
+                    Rotation = new Vector3(345f, 0f, 0f),
+                    Scale = new Vector3(0.10f, 0.15f, 0.11f),
+                    Color = Color.white,
+                });
+                muzzle = new Vector3(0f, 0.025f, 0.49f);
             }
-            return first * ForwardSign(parts, centre, first, second, muzzle);
-        }
-
-        /// <summary>Across the weapon, the grip is the axis with the most spread, and it hangs below the barrel.</summary>
-        private static Vector3 UpAxis(List<MeshPart> parts, Vector3 centre, Vector3 forward, Vector3 first, Vector3 second, Vector3 third)
-        {
-            Vector3 best = Vector3.zero;
-            float bestSpread = -1f;
-            foreach (var axis in new[] { first, second, third })
-            {
-                Vector3 across = Vector3.ProjectOnPlane(axis, forward);
-                if (across.sqrMagnitude < 1e-6f) continue;
-                across.Normalize();
-                float spread = Span(parts, centre, across);
-                if (spread > bestSpread) { bestSpread = spread; best = across; }
-            }
-            if (bestSpread < 0f)
-            {
-                best = Vector3.ProjectOnPlane(Vector3.up, forward);
-                if (best.sqrMagnitude < 1e-6f) best = Vector3.ProjectOnPlane(Vector3.right, forward);
-                best.Normalize();
-            }
-            return best * UpSign(parts, centre, best);
-        }
-
-        /// <summary>How far the weapon reaches from its own centre, used to judge whether a muzzle means anything.</summary>
-        private static float Reach(List<MeshPart> parts, Vector3 centre)
-        {
-            float reach = 0f;
-            foreach (var part in parts)
-                reach = Mathf.Max(reach, (part.Position - centre).magnitude + part.Scale.magnitude * 0.5f);
-            return Mathf.Max(reach, 1e-4f);
-        }
-
-        /// <summary>Which end the shot leaves from. A placed muzzle settles it; otherwise barrels are the thin end.</summary>
-        private static float ForwardSign(List<MeshPart> parts, Vector3 centre, Vector3 lengthAxis, Vector3 upAxis, Vector3 muzzle)
-        {
-            float span = Span(parts, centre, lengthAxis);
-            float offset = Vector3.Dot(muzzle - centre, lengthAxis);
-            if (Mathf.Abs(offset) > span * 0.05f) return Mathf.Sign(offset);
-
-            Vector3 rightAxis = Vector3.Cross(upAxis, lengthAxis).normalized;
-            float front = 0f, back = 0f;
-            int frontCount = 0, backCount = 0;
-            foreach (var part in parts)
-            {
-                // Thickness across the barrel, measured on the weapon's own axes rather than the model's.
-                float section = Extent(part, upAxis) * Extent(part, rightAxis);
-                if (Vector3.Dot(part.Position - centre, lengthAxis) >= 0f) { front += section; frontCount++; }
-                else { back += section; backCount++; }
-            }
-            if (frontCount == 0 || backCount == 0) return 1f;
-            return front / frontCount <= back / backCount ? 1f : -1f;
         }
 
         /// <summary>
@@ -425,6 +435,33 @@ namespace Armory.Core
             float furthest = 0.2f;
             foreach (var part in parts) furthest = Mathf.Max(furthest, part.Position.z + part.Scale.z * 0.5f);
             return furthest;
+        }
+
+        private static float LargestDimension(MeshPart part) =>
+            Mathf.Max(part.Scale.x, Mathf.Max(part.Scale.y, part.Scale.z));
+
+        private static float Volume(MeshPart part) => part.Scale.x * part.Scale.y * part.Scale.z;
+
+        private static float SnapAngle(float degrees) => Mathf.Repeat(Mathf.Round(degrees / 15f) * 15f, 360f);
+
+        private static bool NameContains(string name, params string[] terms)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return false;
+            foreach (string term in terms)
+                if (name.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+            return false;
+        }
+
+        private static void MakeRoom(List<MeshPart> parts, int additions)
+        {
+            while (parts.Count > MaxParts - additions)
+            {
+                MeshPart smallest = parts[0];
+                foreach (var part in parts)
+                    if (Volume(part) < Volume(smallest)) smallest = part;
+                parts.Remove(smallest);
+            }
         }
 
         private static float Sane(float value) =>

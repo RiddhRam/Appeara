@@ -44,13 +44,8 @@ namespace Armory
             "Homing lightning missiles that chain between aliens",
         };
 
-        /// <summary>One of these is fabricated automatically when a new run begins.</summary>
-        public static readonly string[] InitialWeaponPrompts =
-        {
-            "A donut that I throw at enemies",
-            "A goose that throws eggs at enemies",
-            "A machine gun",
-        };
+        /// <summary>Fabricated automatically when a new run begins.</summary>
+        public const string InitialWeaponPrompt = "A machine gun";
 
         private AudioSource shipVoice;
         private AudioSource motherVoice;
@@ -60,6 +55,7 @@ namespace Armory
         private BlueprintHologram wristBlueprint;
         private BlueprintHologram coreBlueprint;
         private int blueprintRequest;
+        private const string WeaponVisualStyleVersion = "weapon-style-v5";
 
         // Always-on looping mic; push-to-talk just marks start/end positions, so the first word is never clipped.
         private bool probing;
@@ -109,8 +105,7 @@ namespace Armory
             _ = Fabricate(PickInitialWeaponPrompt(), playerRequested: false);
         }
 
-        public static string PickInitialWeaponPrompt() =>
-            InitialWeaponPrompts[UnityEngine.Random.Range(0, InitialWeaponPrompts.Length)];
+        public static string PickInitialWeaponPrompt() => InitialWeaponPrompt;
 
         private void StartMic()
         {
@@ -259,6 +254,7 @@ namespace Armory
                     parsed = WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(request));
                     if (OpenAI != null) parsed.ShipAILine = "Uplink failed, so I improvised: " + parsed.Name + ".";
                 }
+                parsed.DesignPrompt = request;
                 ApplyBudget(parsed);
                 var assemble = trace.StartSpan("unity.assemble", "Build weapon in player hand");
                 try { Equip(parsed, announce: true, trace); }
@@ -272,6 +268,7 @@ namespace Armory
                 if (!playerRequested && Current == null)
                 {
                     var fallback = WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(request));
+                    fallback.DesignPrompt = request;
                     Equip(fallback, announce: true, trace);
                     Status = "Starter weapon built offline";
                 }
@@ -339,7 +336,7 @@ namespace Armory
             {
                 string dir = System.IO.Path.Combine(Application.temporaryCachePath, "armory-weapon-art");
                 System.IO.Directory.CreateDirectory(dir);
-                string path = System.IO.Path.Combine(dir, Hash(Settings.ImageModel + "art" + spec.Name) + ".png");
+                string path = System.IO.Path.Combine(dir, VisualCacheKey(spec, "art") + ".png");
                 byte[] png = System.IO.File.Exists(path) ? System.IO.File.ReadAllBytes(path) : null;
                 if (png == null)
                 {
@@ -357,38 +354,75 @@ namespace Armory
             finally { trace?.Complete(); }
         }
 
-        /// <summary>AI concept-art blueprint for the new weapon, cached on disk by name so demo repeats are instant.</summary>
+        /// <summary>AI concept-art blueprint for the new weapon, cached by visual spec so demo repeats are instant.</summary>
         private async Awaitable LoadBlueprint(ParsedWeapon spec, FabricationTrace trace = null)
         {
+            int request = ++blueprintRequest;
             try
             {
-                int request = ++blueprintRequest;
                 wristBlueprint.SetPending(spec.Name);
                 coreBlueprint.SetPending(spec.Name);
 
                 string dir = System.IO.Path.Combine(Application.temporaryCachePath, "armory-blueprints");
                 System.IO.Directory.CreateDirectory(dir);
-                string path = System.IO.Path.Combine(dir, Hash(Settings.ImageModel + spec.Name) + ".png");
+                string path = System.IO.Path.Combine(dir, VisualCacheKey(spec, "blueprint") + ".png");
                 byte[] png = System.IO.File.Exists(path) ? System.IO.File.ReadAllBytes(path) : null;
-                if (png == null)
+                Texture2D texture = DecodeTexture(png);
+                string source = texture != null ? "cached concept render" : null;
+                if (texture == null && WeaponBlueprintCatalog.TryLoad(spec, out byte[] catalogPng, out string archetype))
                 {
-                    png = await OpenAI.GenerateBlueprint(spec.Name, ColorName(spec.Color), Flavour(spec.Payload), trace);
-                    if (png != null) System.IO.File.WriteAllBytes(path, png);
+                    png = catalogPng;
+                    texture = DecodeTexture(png);
+                    source = "local " + archetype.Replace('_', ' ');
+                }
+                if (texture == null)
+                {
+                    png = await OpenAI.GenerateBlueprint(spec.Name, spec.DesignPrompt, spec.FireMode, spec.Payload, ColorName(spec.Color), Flavour(spec.Payload), trace);
+                    texture = DecodeTexture(png);
+                    if (texture != null)
+                    {
+                        source = "ai concept render";
+                        System.IO.File.WriteAllBytes(path, png);
+                    }
                 }
                 // A newer weapon may have been requested while this one generated.
-                if (request != blueprintRequest || png == null) return;
-                var texture = new Texture2D(2, 2, TextureFormat.RGBA32, true);
-                texture.LoadImage(png);
-                wristBlueprint.Show(texture, spec.Name);
-                coreBlueprint.Show(texture, spec.Name);
+                if (request != blueprintRequest) return;
+                bool localFallback = texture == null;
+                if (localFallback)
+                {
+                    Debug.LogWarning("Blueprint image unavailable; displaying a local schematic fallback. " + OpenAI.LastError);
+                    texture = BlueprintHologram.CreateFallbackTexture(spec.Name, spec.DesignPrompt, spec.Color);
+                    png = texture.EncodeToPNG();
+                    source = "local fallback";
+                }
+                wristBlueprint.Show(texture, spec.Name, source);
+                coreBlueprint.Show(texture, spec.Name, source);
                 ProceduralSfx.PlayAt(ProceduralSfx.Fabricate, coreBlueprint.transform.position, 0.8f);
 
                 // The blueprint is the reference for the real geometry: GPT reads its own drawing and returns the
                 // weapon as primitives, which replaces the hologram in the player's hand.
                 await BuildMeshFromBlueprint(spec, png, request, trace);
             }
-            catch (System.Exception error) { Debug.LogWarning("Blueprint generation failed: " + error.Message); }
+            catch (System.Exception error)
+            {
+                Debug.LogWarning("Blueprint generation failed: " + error.Message);
+                if (request == blueprintRequest)
+                {
+                    var texture = BlueprintHologram.CreateFallbackTexture(spec.Name, spec.DesignPrompt, spec.Color);
+                    wristBlueprint.Show(texture, spec.Name, "local fallback");
+                    coreBlueprint.Show(texture, spec.Name, "local fallback");
+                }
+            }
             finally { trace?.Complete(); }
+        }
+
+        private static Texture2D DecodeTexture(byte[] png)
+        {
+            if (png == null || png.Length == 0) return null;
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, true);
+            if (texture.LoadImage(png)) return texture;
+            Destroy(texture);
+            return null;
         }
 
         /// <summary>Second half of fabrication: turn the blueprint into primitives and build them in the hand.</summary>
@@ -396,7 +430,7 @@ namespace Armory
         {
             if (!Settings.GenerateWeaponMesh) return;
             string traits = $"{spec.FireMode} · {spec.Payload} · {spec.Mods}";
-            string json = await OpenAI.DescribeWeaponMesh(spec.Name, traits, blueprintPng, trace);
+            string json = await OpenAI.DescribeWeaponMesh(spec.Name, spec.DesignPrompt, spec.FireMode, spec.Payload, traits, blueprintPng, trace);
             if (request != blueprintRequest || Current == null || Current.Spec != spec) return;
             var parts = WeaponMesh.Parse(json, spec.Color, out var muzzle);
             if (parts.Count == 0) { Debug.LogWarning("Weapon mesh: model returned no usable parts; keeping placeholder."); return; }
@@ -437,6 +471,9 @@ namespace Armory
             using var md5 = System.Security.Cryptography.MD5.Create();
             return System.BitConverter.ToString(md5.ComputeHash(Encoding.UTF8.GetBytes(text))).Replace("-", "").ToLowerInvariant();
         }
+
+        private string VisualCacheKey(ParsedWeapon spec, string kind) => Hash(
+            $"{Settings.ImageModel}|{WeaponVisualStyleVersion}|{kind}|{spec.Name}|{spec.DesignPrompt}|{spec.FireMode}|{spec.Payload}|{spec.Mods}|{ColorUtility.ToHtmlStringRGB(spec.Color)}");
 
         private async Awaitable LoadWeaponSfx(Weapon weapon, ParsedWeapon spec, FabricationTrace trace = null)
         {

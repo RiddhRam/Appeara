@@ -245,27 +245,17 @@ namespace Armory.Tests
     public class MockInterpreterTests
     {
         [Test]
-        public void InitialWeaponPoolContainsTheThreeStarterConcepts()
+        public void InitialWeaponIsAlwaysTheMachineGun()
         {
-            CollectionAssert.AreEqual(new[]
-            {
-                "A donut that I throw at enemies",
-                "A goose that throws eggs at enemies",
-                "A machine gun",
-            }, ShipAI.InitialWeaponPrompts);
+            Assert.AreEqual("A machine gun", ShipAI.InitialWeaponPrompt);
+            Assert.AreEqual(ShipAI.InitialWeaponPrompt, ShipAI.PickInitialWeaponPrompt());
         }
 
         [Test]
-        public void NoveltyStarterPromptsWorkOffline()
+        public void MachineGunStarterWorksOffline()
         {
-            var donut = WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(ShipAI.InitialWeaponPrompts[0]));
-            var goose = WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(ShipAI.InitialWeaponPrompts[1]));
-            var machineGun = WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(ShipAI.InitialWeaponPrompts[2]));
+            var machineGun = WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(ShipAI.InitialWeaponPrompt));
 
-            Assert.AreEqual(FireMode.Thrown, donut.FireMode);
-            Assert.AreEqual(ProjectileShape.Disc, donut.Shape);
-            Assert.AreEqual(FireMode.Thrown, goose.FireMode);
-            Assert.AreEqual(ProjectileShape.Orb, goose.Shape);
             Assert.Greater(machineGun.FireRate, 6f);
         }
 
@@ -291,6 +281,43 @@ namespace Armory.Tests
             var weapon = WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson("a nice spray gun"));
             Assert.AreEqual(Payload.Kinetic, weapon.Payload);
             Assert.AreEqual(FireMode.Projectile, weapon.FireMode);
+        }
+    }
+
+    public class WeaponBlueprintCatalogTests
+    {
+        private static ParsedWeapon Weapon(string prompt, FireMode mode = FireMode.Projectile, Payload payload = Payload.Kinetic) =>
+            new ParsedWeapon { Name = "Generated Name", DesignPrompt = prompt, FireMode = mode, Payload = payload };
+
+        [TestCase("machine gun", "machine_gun")]
+        [TestCase("rocket launcher", "rocket_launcher")]
+        [TestCase("compact SMG", "smg")]
+        [TestCase("grenade launcher", "grenade_launcher")]
+        [TestCase("assault rifle", "assault_rifle")]
+        [TestCase("combat shotgun", "shotgun")]
+        [TestCase("sniper rifle", "sniper_rifle")]
+        [TestCase("plasma pistol", "pistol")]
+        [TestCase("rail gun", "railgun")]
+        [TestCase("tesla cannon", "tesla_cannon")]
+        [TestCase("flame thrower", "flamethrower")]
+        public void CommonArchetypesUseLocalBlueprints(string prompt, string expected)
+        {
+            Assert.AreEqual(expected, WeaponBlueprintCatalog.FindClosest(Weapon(prompt)));
+        }
+
+        [Test]
+        public void BeamTraitsChooseAnAppropriateSupportBlueprint()
+        {
+            Assert.AreEqual("tesla_cannon", WeaponBlueprintCatalog.FindClosest(Weapon("chain arc tool", FireMode.Beam, Payload.Electric)));
+            Assert.AreEqual("railgun", WeaponBlueprintCatalog.FindClosest(Weapon("focused energy tool", FireMode.Beam, Payload.Plasma)));
+        }
+
+        [TestCase("energy sword", FireMode.Melee)]
+        [TestCase("crystal bow", FireMode.Bow)]
+        [TestCase("throwing star", FireMode.Thrown)]
+        public void UnknownNonFirearmsStillUseOnlineGeneration(string prompt, FireMode mode)
+        {
+            Assert.IsNull(WeaponBlueprintCatalog.FindClosest(Weapon(prompt, mode)));
         }
     }
 

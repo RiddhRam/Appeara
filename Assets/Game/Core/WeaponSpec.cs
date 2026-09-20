@@ -64,6 +64,8 @@ namespace Armory.Core
     public sealed class ParsedWeapon
     {
         public string Name;
+        /// <summary>Original player wording retained for visual art direction; never part of the model's JSON.</summary>
+        public string DesignPrompt;
         public string ShipAILine;
         public FireMode FireMode;
         public Payload Payload;
