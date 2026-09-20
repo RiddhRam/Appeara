@@ -22,11 +22,21 @@ namespace Armory
 
         private static readonly Color HiveColor = new Color(1f, 0.25f, 0.48f);
         private static readonly string[] OrganNames = { "LEFT CLAW", "RIGHT CLAW", "SPORE SAC", "CREST" };
+        private static readonly int BaseColorParam = Shader.PropertyToID("_BaseColor");
+        private static MaterialPropertyBlock plateTint;
+        private static readonly int MovingParam = Animator.StringToHash("Moving");
+        private static readonly int ClawParam = Animator.StringToHash("Claw");
+        private static readonly int BiteParam = Animator.StringToHash("Bite");
+        private static readonly int DieParam = Animator.StringToHash("Die");
         private readonly Transform[] organs = new Transform[4];
         private readonly Transform[] anchors = new Transform[4];
         private readonly List<Renderer> plates = new List<Renderer>();
         private readonly List<HiveThreat> threats = new List<HiveThreat>();
         private HiveAvatarAssets assets;
+        private HiveAvatarRig rig;
+        private Animator animator;
+        /// <summary>True once the authored prefab's animator controller drives the body instead of raw clips.</summary>
+        private bool controllerDriven;
         private Transform model;
         private Transform hazards;
         private TextMeshPro title, status;
@@ -47,7 +57,7 @@ namespace Armory
             assets = presentation;
             hazards = new GameObject("Hive Hazards").transform;
             hazards.SetParent(transform.parent, false);
-            if (assets != null && assets.Model != null) BuildModel();
+            if (assets != null && (assets.Visual != null || assets.Model != null)) BuildModel();
             else Mats.Shape(PrimitiveType.Capsule, transform, Vector3.up * 6f, new Vector3(8f, 6f, 8f), Mats.Lit(HiveColor), name: "Avatar Fallback");
             BuildTargets();
             BuildHealthDisplay();
@@ -56,13 +66,25 @@ namespace Armory
 
         private void BuildModel()
         {
-            model = Instantiate(assets.Model, transform).transform;
+            // The authored prefab is the FBX plus chitin scales, organ sockets and an animator controller.
+            // Fall back to the bare model so an older HiveAvatarAssets asset still spawns a boss.
+            model = Instantiate(assets.Visual != null ? assets.Visual : assets.Model, transform).transform;
             model.name = "Hive Avatar Body";
             model.localPosition = Vector3.zero;
             model.localRotation = Quaternion.identity;
             model.localScale = Vector3.one;
             foreach (var collider in model.GetComponentsInChildren<Collider>()) collider.enabled = false;
-            Play(assets.Idle, true);
+            animator = model.GetComponentInChildren<Animator>();
+            controllerDriven = animator != null && animator.runtimeAnimatorController != null;
+            if (controllerDriven)
+            {
+                animator.applyRootMotion = false;
+                animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                // Settle into the controller's default state now: the bake below measures whatever pose is applied.
+                animator.Rebind();
+                animator.Update(0f);
+            }
+            else Motion(HiveMotion.Idle);
             // Imported renderer bounds include every animation. Bake this pose to place the feet on the deck.
             var skin = model.GetComponentInChildren<SkinnedMeshRenderer>();
             if (skin != null)
@@ -79,10 +101,10 @@ namespace Armory
                 model.localPosition = new Vector3(-(min.x + max.x) * 0.5f, -Mathf.Min(min.y, max.y), -(min.z + max.z) * 0.5f) * scale;
                 Destroy(mesh);
             }
-            var bones = model.GetComponentsInChildren<Transform>();
-            string[] names = { "Bone.005_L.004", "Bone.005_R.004", "Bone.005", "Bone.028" };
-            for (int i = 0; i < names.Length; i++)
-                foreach (var bone in bones) if (bone.name == names[i]) { anchors[i] = bone; break; }
+            rig = HiveAvatarRig.Bind(model);
+            if (rig.Authored) rig.HideAnchorCores();
+            for (int i = 0; i < anchors.Length; i++) anchors[i] = rig.Anchors[i];
+            if (!rig.IsComplete) Debug.LogWarning("Hive Avatar: model is missing organ anchors; those organs stay at their fallback offsets.");
         }
 
         private void BuildTargets()
@@ -113,6 +135,12 @@ namespace Armory
                     float a = j * Mathf.PI / 16f;
                     ring.SetPosition(j, new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f) * 0.68f);
                 }
+            }
+            if (rig != null && rig.Plates.Length > 0)
+            {
+                // The prefab already carries authored scales on the skeleton; building cubes on top would double them.
+                plates.AddRange(rig.Plates);
+                return;
             }
             for (int i = 0; i < 8; i++)
             {
@@ -161,6 +189,43 @@ namespace Armory
             }
         }
 
+        private enum HiveMotion { Idle, Walk, Claw, Bite, Die }
+
+        /// <summary>
+        /// The one entry point for body motion. The authored prefab ships an animator controller; the bare model
+        /// has no controller and keeps the manual playable path. Running both would have them fight over the
+        /// same Animator, so the encounter never names a clip directly.
+        /// </summary>
+        private void Motion(HiveMotion motion)
+        {
+            // Death is terminal: an Any State trigger fired afterwards would pull the boss out of its death clip.
+            if (dying && motion != HiveMotion.Die) return;
+            if (controllerDriven)
+            {
+                switch (motion)
+                {
+                    case HiveMotion.Walk: animator.SetBool(MovingParam, true); break;
+                    case HiveMotion.Idle: animator.SetBool(MovingParam, false); break;
+                    case HiveMotion.Claw: animator.SetTrigger(ClawParam); break;
+                    case HiveMotion.Bite: animator.SetTrigger(BiteParam); break;
+                    case HiveMotion.Die: animator.SetBool(MovingParam, false); animator.SetTrigger(DieParam); break;
+                }
+                return;
+            }
+            AnimationClip clip = null;
+            bool loop = false;
+            if (assets != null)
+                switch (motion)
+                {
+                    case HiveMotion.Walk: clip = assets.Walk; loop = true; break;
+                    case HiveMotion.Idle: clip = assets.Idle; loop = true; break;
+                    case HiveMotion.Claw: clip = assets.Attack; break;
+                    case HiveMotion.Bite: clip = assets.Spit; break;
+                    case HiveMotion.Die: clip = assets.Death; break;
+                }
+            Play(clip, loop);
+        }
+
         private void Play(AnimationClip clip, bool loop)
         {
             if (clip == null || model == null) return;
@@ -188,7 +253,7 @@ namespace Armory
             Vector3 outward = (start - Body.Target).normalized;
             float coreReach = StationCore.Instance != null ? StationCore.Instance.ReachRadius : 5f;
             Vector3 destination = Body.Target + outward * Mathf.Max(27f, coreReach + 20f);
-            Play(assets != null ? assets.Walk : null, true);
+            Motion(HiveMotion.Walk);
             for (float t = 0f; t < 4f; t += Time.deltaTime)
             {
                 transform.position = Vector3.Lerp(start, destination, Mathf.SmoothStep(0f, 1f, t / 4f));
@@ -198,7 +263,7 @@ namespace Armory
             Ready = true;
             if (Mothership.Instance != null && Mothership.Instance.ActiveDefendedPrimitive != null)
                 Adapt(Mothership.Instance.ActiveDefendedPrimitive);
-            Play(assets != null ? assets.Idle : null, true);
+            Motion(HiveMotion.Idle);
             ArmoryGame.Instance?.ShowBanner("HIVE AVATAR / BREAK THE GLOWING ORGANS", HiveColor);
             int attackIndex = 0;
             while (Body.Alive)
@@ -211,7 +276,7 @@ namespace Armory
                 if (attack == HiveAttack.SweepLeft || attack == HiveAttack.SweepRight) yield return Sweep(attack);
                 else yield return LaunchThreats(attack);
                 CurrentAttack = "";
-                Play(assets != null ? assets.Idle : null, true);
+                Motion(HiveMotion.Idle);
             }
         }
 
@@ -228,7 +293,7 @@ namespace Armory
                 if (!Rules.CanAttack(attack)) { Destroy(marker.gameObject); yield break; }
                 yield return null;
             }
-            Play(assets != null ? assets.Attack : null, false);
+            Motion(HiveMotion.Claw);
             Effects.Lightning(AimPoint, point + Vector3.up, HiveColor);
             Effects.Burst(point + Vector3.up * 0.5f, HiveColor, radius * 2f);
             Destroy(marker.gameObject);
@@ -242,7 +307,7 @@ namespace Armory
             bool spores = attack == HiveAttack.Spores;
             Phase = spores ? "SPORES / SHOOT BEFORE THEY HATCH" : "WRECK / SHOOT TO PROTECT CORE";
             ArmoryGame.Instance?.ShowBanner(spores ? "SPORE PODS / SHOOT THEM DOWN" : "INCOMING WRECK / SHOOT IT DOWN", HiveColor);
-            Play(assets != null ? assets.Spit : null, false);
+            Motion(HiveMotion.Bite);
             yield return new WaitForSeconds(0.8f);
             if (!Rules.CanAttack(attack)) yield break;
             int count = spores ? 3 : 1;
@@ -287,12 +352,28 @@ namespace Armory
             Rules.Adapt(primitive);
             Color color = primitive == "cryo" ? Color.cyan : primitive == "electric" ? Color.yellow :
                 primitive == "plasma" ? new Color(0.8f, 0.25f, 1f) : primitive == "explosive" ? new Color(1f, 0.4f, 0.05f) : HiveColor;
+            bool authoredPlates = rig != null && rig.Authored;
             foreach (var plate in plates)
             {
+                if (plate == null) continue;
                 Effects.Flash(plate.transform.position, color, 1.8f);
-                plate.sharedMaterial = Mats.Lit(color, 0.8f);
+                if (authoredPlates) Tint(plate, color);
+                else plate.sharedMaterial = Mats.Lit(color, 0.8f);
             }
             ArmoryGame.Instance?.ShowBanner("PLATING: " + primitive.ToUpperInvariant() + " / SWITCH WEAPON", color);
+        }
+
+        /// <summary>
+        /// Recolours an authored chitin scale without throwing its material away. HiveChitin has no emission
+        /// keyword, and a property block cannot switch one on, so the scales take the resist hue in base colour
+        /// and keep their texture and smoothness; the flash carries the moment of adaptation.
+        /// </summary>
+        private static void Tint(Renderer plate, Color color)
+        {
+            if (plateTint == null) plateTint = new MaterialPropertyBlock();
+            plate.GetPropertyBlock(plateTint);
+            plateTint.SetColor(BaseColorParam, color * 0.6f);
+            plate.SetPropertyBlock(plateTint);
         }
 
         public void Defeated(bool killed)
@@ -304,7 +385,7 @@ namespace Armory
             ClearThreats();
             foreach (var collider in GetComponentsInChildren<Collider>()) collider.enabled = false;
             foreach (var organ in organs) if (organ != null) organ.gameObject.SetActive(false);
-            if (killed) Play(assets != null ? assets.Death : null, false);
+            if (killed) Motion(HiveMotion.Die);
             if (Active == this) Active = null;
         }
 

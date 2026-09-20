@@ -19,6 +19,9 @@ namespace Armory.Editor
                 assets = ScriptableObject.CreateInstance<HiveAvatarAssets>();
                 AssetDatabase.CreateAsset(assets, path);
             }
+            const string visualPath = "Assets/Game/Art/HiveAvatar/HiveAvatarVisual.prefab";
+            assets.Visual = AssetDatabase.LoadAssetAtPath<GameObject>(visualPath);
+            if (assets.Visual == null) Debug.LogWarning("Hive Avatar art prefab not found at " + visualPath + "; falling back to the bare model.");
             assets.Model = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
             var clips = AssetDatabase.LoadAllAssetsAtPath(modelPath).OfType<AnimationClip>().ToArray();
             assets.Idle = clips.First(c => c.name == "Armature|Idle_Aggressive");
@@ -28,7 +31,7 @@ namespace Armory.Editor
             assets.Death = clips.First(c => c.name == "Armature|Die_1");
             EditorUtility.SetDirty(assets);
             AssetDatabase.SaveAssets();
-            Debug.Log("Hive Avatar model and five animation clips prepared. Scene unchanged.");
+            Debug.Log((assets.Visual != null ? "Hive Avatar art prefab" : "Hive Avatar model") + " and five animation clips prepared. Scene unchanged.");
         }
 
         [MenuItem("Armory/Jump To Hive Avatar (Play Mode)")]
