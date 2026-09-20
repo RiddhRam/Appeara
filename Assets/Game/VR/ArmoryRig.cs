@@ -372,16 +372,19 @@ namespace Armory
     {
         public ArmoryRig Rig;
 
-        [Range(0.5f, 1f)] public float RenderScale = 0.85f;
-        [Range(0f, 1f)] public float FoveationStrength = 0.5f;
+        [Range(0.5f, 1f)] public float RenderScale = 0.7f;
+        [Range(0f, 1f)] public float FoveationStrength = 0.7f;
         public float FarClip = 120f;
 
         private readonly List<XRDisplaySubsystem> displays = new List<XRDisplaySubsystem>();
+        private readonly List<Light> lights = new List<Light>();
+        private readonly List<LightShadows> lightShadows = new List<LightShadows>();
         private bool applied;
         private float oldEyeTextureScale;
         private float oldLodBias;
         private bool oldHdr;
         private float oldFarClip;
+        private float oldSkyPerformanceMode;
 
         private void Update()
         {
@@ -400,6 +403,20 @@ namespace Armory
             Rig.Head.allowDynamicResolution = true;
             XRSettings.eyeTextureResolutionScale = Mathf.Min(oldEyeTextureScale, RenderScale);
             QualitySettings.lodBias = Mathf.Min(oldLodBias, 1.25f);
+
+            var sky = SpaceSky.Material;
+            if (sky != null && sky.HasProperty("_PerformanceMode"))
+            {
+                oldSkyPerformanceMode = sky.GetFloat("_PerformanceMode");
+                sky.SetFloat("_PerformanceMode", 1f);
+            }
+
+            foreach (var light in FindObjectsByType<Light>(FindObjectsSortMode.None))
+            {
+                lights.Add(light);
+                lightShadows.Add(light.shadows);
+                light.shadows = LightShadows.None;
+            }
 
             SubsystemManager.GetSubsystems(displays);
             foreach (var display in displays)
@@ -424,6 +441,12 @@ namespace Armory
             }
             XRSettings.eyeTextureResolutionScale = oldEyeTextureScale;
             QualitySettings.lodBias = oldLodBias;
+            if (SpaceSky.Material != null && SpaceSky.Material.HasProperty("_PerformanceMode"))
+                SpaceSky.Material.SetFloat("_PerformanceMode", oldSkyPerformanceMode);
+            for (int i = 0; i < lights.Count; i++)
+                if (lights[i] != null) lights[i].shadows = lightShadows[i];
+            lights.Clear();
+            lightShadows.Clear();
             foreach (var display in displays)
                 if (display != null && display.running) display.foveatedRenderingLevel = 0f;
             displays.Clear();

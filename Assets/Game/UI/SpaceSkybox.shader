@@ -22,6 +22,7 @@ Shader "Armory/SpaceSkybox"
         _PlanetColor ("Planet Colour", Color) = (0.20, 0.28, 0.44, 1)
         [HDR] _PlanetRim ("Planet Rim", Color) = (0.22, 0.52, 0.9, 1)
         _PlanetLight ("Planet Light Direction", Vector) = (-0.45, 0.35, 0.82, 0)
+        [HideInInspector] _PerformanceMode ("Performance Mode", Float) = 0
     }
     SubShader
     {
@@ -54,6 +55,7 @@ Shader "Armory/SpaceSkybox"
                 float4 _PlanetColor;
                 float4 _PlanetRim;
                 float4 _PlanetLight;
+                float _PerformanceMode;
             CBUFFER_END
 
             struct Attributes { float4 positionOS : POSITION; UNITY_VERTEX_INPUT_INSTANCE_ID };
@@ -122,6 +124,25 @@ Shader "Armory/SpaceSkybox"
                 // Deep navy around the horizon fading to black overhead, so the station reads against something.
                 float height = saturate(dir.y * 0.5 + 0.5);
                 float3 color = lerp(_SkyHorizon.rgb, _SkyZenith.rgb, height * height);
+
+                // Quest/VR path: the full sky below performs ~30 hashes per pixel. Across two high-resolution eyes
+                // that can dominate an entire mobile GPU frame. Keep the same palette but use one hash and no 3D
+                // noise; the station windows hide the difference far better than dropped/reprojected frames do.
+                if (_PerformanceMode > 0.5)
+                {
+                    float3 axis = abs(dir);
+                    float3 cubeDir = dir / max(axis.x, max(axis.y, axis.z));
+                    bool xFace = axis.x >= axis.y && axis.x >= axis.z;
+                    bool yFace = !xFace && axis.y >= axis.z;
+                    float2 starPlane = xFace ? cubeDir.yz : (yFace ? cubeDir.xz : cubeDir.xy);
+                    float faceSeed = xFace ? (cubeDir.x > 0.0 ? 1.0 : 2.0) :
+                        (yFace ? (cubeDir.y > 0.0 ? 3.0 : 4.0) : (cubeDir.z > 0.0 ? 5.0 : 6.0));
+                    float2 grid = starPlane * 72.0;
+                    float starHash = Hash21(floor(grid) + faceSeed * 71.7);
+                    float2 offset = frac(float2(starHash * 13.17, starHash * 37.91));
+                    float star = step(0.975, starHash) * saturate(1.0 - length(frac(grid) - offset) * 3.2);
+                    return half4(color + star * _StarBrightness, 1);
+                }
 
                 // Faint nebula: two octaves of value noise for the shape, a third (much larger) for the cyan/magenta mix.
                 float n = Value3(dir * _NebulaScale) * 0.65 + Value3(dir * _NebulaScale * 2.7) * 0.35;
