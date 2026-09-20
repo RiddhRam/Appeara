@@ -87,6 +87,8 @@ namespace Armory.Core
 
         /// <summary>How far behind the hand the back of the weapon sits, so the grip is in the palm not in front of it.</summary>
         public const float GripSetBack = 0.06f;
+        /// <summary>How far a declared muzzle may sit from the weapon's own length axis and still be believed.</summary>
+        public const float MuzzleTrustDegrees = 35f;
 
         /// <summary>
         /// Everything needed to put a generated weapon in the hand pointing at the enemy: orient it, scale it,
@@ -106,21 +108,22 @@ namespace Armory.Core
         /// the model has produced: the longest dimension is the length of the weapon, the muzzle end is the
         /// thinner end, and the grip is the mass hanging off the barrel line.
         /// </summary>
-        public static void Orient(List<MeshPart> parts, ref Vector3 muzzle)
+        public static Quaternion Orient(List<MeshPart> parts, ref Vector3 muzzle)
         {
-            if (parts == null || parts.Count < 2) return;
+            if (parts == null || parts.Count < 2) return Quaternion.identity;
             Vector3 centre = Centroid(parts);
             // Principal axes, not bounding-box axes. A weapon returned at forty-five degrees has a bounding box
             // that is square in two of its dimensions, so ranking box edges picks an arbitrary one and the
             // weapon ends up wedged across the player's view. The spread of the actual mass has no such problem.
             Covariance(parts, centre, out var covariance);
-            Vector3 lengthAxis = Dominant(covariance, Vector3.forward);
-            Vector3 upAxis = DominantOrthogonalTo(covariance, lengthAxis);
+            Vector3 first = Dominant(covariance, Vector3.forward);
+            Vector3 second = DominantOrthogonalTo(covariance, first);
+            Vector3 third = Vector3.Cross(first, second).normalized;
 
-            Vector3 forward = lengthAxis * ForwardSign(parts, centre, lengthAxis, upAxis, muzzle);
-            Vector3 up = upAxis * UpSign(parts, centre, upAxis);
+            Vector3 forward = ForwardAxis(parts, centre, muzzle, first, second, third);
+            Vector3 up = UpAxis(parts, centre, forward, first, second, third);
             // Every part sitting on one line leaves nothing to orient by; the model's own frame is as good as any.
-            if (Mathf.Abs(Vector3.Dot(forward, up)) > 0.99f) return;
+            if (Mathf.Abs(Vector3.Dot(forward, up)) > 0.99f) return Quaternion.identity;
 
             var rotation = Quaternion.Inverse(Quaternion.LookRotation(forward, up));
             foreach (var part in parts)
@@ -131,6 +134,7 @@ namespace Armory.Core
                 part.Rotation = (rotation * Quaternion.Euler(part.Rotation)).eulerAngles;
             }
             muzzle = rotation * muzzle;
+            return rotation;
         }
 
         /// <summary>
@@ -187,6 +191,67 @@ namespace Armory.Core
             return total > 0f ? weighted / total : centreY;
         }
 
+        /// <summary>
+        /// Which way the weapon points. A muzzle is the model saying where the shot leaves, and that is better
+        /// evidence of forward than length is: a pistol is very nearly as tall as it is long, so picking the
+        /// biggest principal axis hands the job to the grip and the gun comes out aimed at the floor. The muzzle
+        /// only selects among the weapon's own axes though - it never becomes the aim direction itself, so a
+        /// carelessly placed one tilts nothing.
+        /// </summary>
+        private static Vector3 ForwardAxis(List<MeshPart> parts, Vector3 centre, Vector3 muzzle, Vector3 first, Vector3 second, Vector3 third)
+        {
+            Vector3 toMuzzle = muzzle - centre;
+            if (toMuzzle.magnitude > Reach(parts, centre) * 0.15f)
+            {
+                Vector3 direction = toMuzzle.normalized;
+                Vector3 best = first;
+                float bestAlignment = Mathf.Abs(Vector3.Dot(first, direction));
+                foreach (var axis in new[] { second, third })
+                {
+                    float alignment = Mathf.Abs(Vector3.Dot(axis, direction));
+                    if (alignment > bestAlignment) { bestAlignment = alignment; best = axis; }
+                }
+                if (Vector3.Dot(best, direction) < 0f) best = -best;
+                // Where the two agree, take the muzzle exactly. The principal axis of a weapon with a fat drum
+                // or a heavy stock sits a few degrees off the barrel it is meant to describe, and those few
+                // degrees are the difference between a barrel that points at the crosshair and one that does
+                // not. Disagreement beyond the cone means the muzzle is junk, and the geometry wins.
+                return Vector3.Angle(direction, best) <= MuzzleTrustDegrees ? direction : best;
+            }
+            return first * ForwardSign(parts, centre, first, second, muzzle);
+        }
+
+        /// <summary>Across the weapon, the grip is the axis with the most spread, and it hangs below the barrel.</summary>
+        private static Vector3 UpAxis(List<MeshPart> parts, Vector3 centre, Vector3 forward, Vector3 first, Vector3 second, Vector3 third)
+        {
+            Vector3 best = Vector3.zero;
+            float bestSpread = -1f;
+            foreach (var axis in new[] { first, second, third })
+            {
+                Vector3 across = Vector3.ProjectOnPlane(axis, forward);
+                if (across.sqrMagnitude < 1e-6f) continue;
+                across.Normalize();
+                float spread = Span(parts, centre, across);
+                if (spread > bestSpread) { bestSpread = spread; best = across; }
+            }
+            if (bestSpread < 0f)
+            {
+                best = Vector3.ProjectOnPlane(Vector3.up, forward);
+                if (best.sqrMagnitude < 1e-6f) best = Vector3.ProjectOnPlane(Vector3.right, forward);
+                best.Normalize();
+            }
+            return best * UpSign(parts, centre, best);
+        }
+
+        /// <summary>How far the weapon reaches from its own centre, used to judge whether a muzzle means anything.</summary>
+        private static float Reach(List<MeshPart> parts, Vector3 centre)
+        {
+            float reach = 0f;
+            foreach (var part in parts)
+                reach = Mathf.Max(reach, (part.Position - centre).magnitude + part.Scale.magnitude * 0.5f);
+            return Mathf.Max(reach, 1e-4f);
+        }
+
         /// <summary>Which end the shot leaves from. A placed muzzle settles it; otherwise barrels are the thin end.</summary>
         private static float ForwardSign(List<MeshPart> parts, Vector3 centre, Vector3 lengthAxis, Vector3 upAxis, Vector3 muzzle)
         {
@@ -208,15 +273,20 @@ namespace Armory.Core
             return front / frontCount <= back / backCount ? 1f : -1f;
         }
 
-        /// <summary>The grip hangs off the barrel line, so the side carrying more outlying mass is down.</summary>
+        /// <summary>
+        /// The grip hangs off the barrel, so the side that reaches further from the weapon's middle is down.
+        /// Reach, not weight: volume-weighted moments about the centroid cancel to zero by the definition of a
+        /// centroid, so comparing them decided which way up a pistol went on floating-point noise alone.
+        /// </summary>
         private static float UpSign(List<MeshPart> parts, Vector3 centre, Vector3 upAxis)
         {
             float above = 0f, below = 0f;
             foreach (var part in parts)
             {
                 float offset = Vector3.Dot(part.Position - centre, upAxis);
-                if (offset >= 0f) above += Volume(part) * offset;
-                else below += Volume(part) * -offset;
+                float half = Extent(part, upAxis) * 0.5f;
+                above = Mathf.Max(above, offset + half);
+                below = Mathf.Max(below, half - offset);
             }
             // A blade or an orb has no grip to find, and either way up is as good as the other.
             return below >= above ? 1f : -1f;
@@ -286,6 +356,16 @@ namespace Armory.Core
                             matrix[r][c] += weight * axis[r] * axis[c];
                 }
             }
+
+            // Scaled to a trace of one before anyone iterates on it. A weapon measured in metres produces
+            // entries around 1e-6, and Vector3.Normalize quietly returns zero below 1e-5, so the power
+            // iteration was being wiped on its first step and falling back to the world axes. That fallback
+            // happens to be right whenever the model answered axis-aligned, which is exactly why this hid.
+            float trace = matrix[0][0] + matrix[1][1] + matrix[2][2];
+            if (trace <= 0f) return;
+            for (int r = 0; r < 3; r++)
+                for (int c = 0; c < 3; c++)
+                    matrix[r][c] /= trace;
         }
 
         /// <summary>Power iteration: enough for the one dominant direction, and no eigen solver to get wrong.</summary>
