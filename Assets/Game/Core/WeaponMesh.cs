@@ -85,66 +85,259 @@ namespace Armory.Core
             return parts;
         }
 
+        /// <summary>How far behind the hand the back of the weapon sits, so the grip is in the palm not in front of it.</summary>
+        public const float GripSetBack = 0.06f;
+
         /// <summary>
-        /// Rescales and recentres the whole weapon so it is always a weapon-sized object in the player's hand,
-        /// whatever units the model answered in (centimetres and "3.0" blocks both happen). The grip ends up just
-        /// behind the origin and the barrel runs forward along +Z.
+        /// Everything needed to put a generated weapon in the hand pointing at the enemy: orient it, scale it,
+        /// then anchor it on the grip. Callers should use this rather than the steps individually.
+        /// </summary>
+        public static void Fit(List<MeshPart> parts, ref Vector3 muzzle, float targetLength = TargetLength)
+        {
+            Orient(parts, ref muzzle);
+            Normalize(parts, ref muzzle, targetLength);
+        }
+
+        /// <summary>
+        /// Rotates the weapon into the convention the rest of the game assumes: barrel along +Z, up along +Y.
+        /// The model is asked to answer that way and routinely does not - it lays a rifle along X, or stands it
+        /// on end along Y - which is why generated guns arrived in the hand sideways. Rather than trusting the
+        /// answer, the axes are read off the geometry, using three things that hold for every gun, bow and blade
+        /// the model has produced: the longest dimension is the length of the weapon, the muzzle end is the
+        /// thinner end, and the grip is the mass hanging off the barrel line.
+        /// </summary>
+        public static void Orient(List<MeshPart> parts, ref Vector3 muzzle)
+        {
+            if (parts == null || parts.Count < 2) return;
+            Vector3 centre = Centroid(parts);
+            // Principal axes, not bounding-box axes. A weapon returned at forty-five degrees has a bounding box
+            // that is square in two of its dimensions, so ranking box edges picks an arbitrary one and the
+            // weapon ends up wedged across the player's view. The spread of the actual mass has no such problem.
+            Covariance(parts, centre, out var covariance);
+            Vector3 lengthAxis = Dominant(covariance, Vector3.forward);
+            Vector3 upAxis = DominantOrthogonalTo(covariance, lengthAxis);
+
+            Vector3 forward = lengthAxis * ForwardSign(parts, centre, lengthAxis, upAxis, muzzle);
+            Vector3 up = upAxis * UpSign(parts, centre, upAxis);
+            // Every part sitting on one line leaves nothing to orient by; the model's own frame is as good as any.
+            if (Mathf.Abs(Vector3.Dot(forward, up)) > 0.99f) return;
+
+            var rotation = Quaternion.Inverse(Quaternion.LookRotation(forward, up));
+            foreach (var part in parts)
+            {
+                part.Position = rotation * part.Position;
+                // Composed, not replaced: a part's own scale is applied along its own axes, so turning the
+                // weapon has to turn each part with it or the barrel becomes a slab.
+                part.Rotation = (rotation * Quaternion.Euler(part.Rotation)).eulerAngles;
+            }
+            muzzle = rotation * muzzle;
+        }
+
+        /// <summary>
+        /// Rescales the whole weapon so it is always a weapon-sized object in the hand, whatever units the model
+        /// answered in (centimetres and "3.0" blocks both happen), then anchors it on the grip.
         /// </summary>
         public static void Normalize(List<MeshPart> parts, ref Vector3 muzzle, float targetLength = TargetLength)
         {
             if (parts == null || parts.Count == 0) return;
-            CanonicalizeForward(parts, ref muzzle);
-            Vector3 min = Vector3.positiveInfinity, max = Vector3.negativeInfinity;
-            foreach (var part in parts)
-            {
-                min = Vector3.Min(min, part.Position - part.Scale * 0.5f);
-                max = Vector3.Max(max, part.Position + part.Scale * 0.5f);
-            }
+            Bounds(parts, out var min, out var max);
             Vector3 size = max - min;
             float longest = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
             if (longest <= 0.0001f) return;
 
             float factor = targetLength / longest;
             Vector3 centre = (min + max) * 0.5f;
+            // The hand closes on the grip, so the grip is the origin. Centring on Y hung a rifle half above and
+            // half below the palm, which is what made generated guns look stuck to the side of the controller.
+            Vector3 anchor = new Vector3(centre.x, GripHeight(parts, centre.y), min.z);
             foreach (var part in parts)
             {
-                // Centre on X and Y, keep the back of the weapon near the hand on Z.
-                part.Position = new Vector3((part.Position.x - centre.x) * factor,
-                                            (part.Position.y - centre.y) * factor,
-                                            (part.Position.z - min.z) * factor - 0.06f);
+                part.Position = new Vector3((part.Position.x - anchor.x) * factor,
+                                            (part.Position.y - anchor.y) * factor,
+                                            (part.Position.z - anchor.z) * factor - GripSetBack);
                 part.Scale *= factor;
             }
-            muzzle = new Vector3((muzzle.x - centre.x) * factor, (muzzle.y - centre.y) * factor, (muzzle.z - min.z) * factor - 0.06f);
+            muzzle = new Vector3((muzzle.x - anchor.x) * factor, (muzzle.y - anchor.y) * factor,
+                                 (muzzle.z - anchor.z) * factor - GripSetBack);
             if (muzzle.z < 0.05f) muzzle.z = Furthest(parts);
         }
 
-        /// <summary>
-        /// Uses the semantic muzzle point to correct the common vision-model mistake of building the weapon along
-        /// X, Y, or -Z. Snapping to a cardinal axis avoids introducing a small roll or pitch when the muzzle is
-        /// intentionally a little above or to the side of the grip.
-        /// </summary>
-        private static void CanonicalizeForward(List<MeshPart> parts, ref Vector3 muzzle)
+        public static void Bounds(List<MeshPart> parts, out Vector3 min, out Vector3 max)
         {
-            if (muzzle.sqrMagnitude <= MinPart * MinPart) return;
-
-            Vector3 absolute = new Vector3(Mathf.Abs(muzzle.x), Mathf.Abs(muzzle.y), Mathf.Abs(muzzle.z));
-            Vector3 source;
-            if (absolute.x > absolute.y && absolute.x > absolute.z)
-                source = muzzle.x >= 0f ? Vector3.right : Vector3.left;
-            else if (absolute.y > absolute.z)
-                source = muzzle.y >= 0f ? Vector3.up : Vector3.down;
-            else
-                source = muzzle.z >= 0f ? Vector3.forward : Vector3.back;
-
-            if (source == Vector3.forward) return;
-            Quaternion correction = Quaternion.FromToRotation(source, Vector3.forward);
+            min = Vector3.positiveInfinity;
+            max = Vector3.negativeInfinity;
             foreach (var part in parts)
             {
-                part.Position = correction * part.Position;
-                part.Rotation = (correction * Quaternion.Euler(part.Rotation)).eulerAngles;
+                min = Vector3.Min(min, part.Position - part.Scale * 0.5f);
+                max = Vector3.Max(max, part.Position + part.Scale * 0.5f);
             }
-            muzzle = correction * muzzle;
         }
+
+        /// <summary>Where the hand closes: the centre of whatever hangs below the weapon's mass, else its middle.</summary>
+        private static float GripHeight(List<MeshPart> parts, float centreY)
+        {
+            float weighted = 0f, total = 0f;
+            foreach (var part in parts)
+            {
+                if (part.Position.y >= centreY) continue;
+                float volume = Mathf.Max(Volume(part), 1e-6f);
+                weighted += part.Position.y * volume;
+                total += volume;
+            }
+            return total > 0f ? weighted / total : centreY;
+        }
+
+        /// <summary>Which end the shot leaves from. A placed muzzle settles it; otherwise barrels are the thin end.</summary>
+        private static float ForwardSign(List<MeshPart> parts, Vector3 centre, Vector3 lengthAxis, Vector3 upAxis, Vector3 muzzle)
+        {
+            float span = Span(parts, centre, lengthAxis);
+            float offset = Vector3.Dot(muzzle - centre, lengthAxis);
+            if (Mathf.Abs(offset) > span * 0.05f) return Mathf.Sign(offset);
+
+            Vector3 rightAxis = Vector3.Cross(upAxis, lengthAxis).normalized;
+            float front = 0f, back = 0f;
+            int frontCount = 0, backCount = 0;
+            foreach (var part in parts)
+            {
+                // Thickness across the barrel, measured on the weapon's own axes rather than the model's.
+                float section = Extent(part, upAxis) * Extent(part, rightAxis);
+                if (Vector3.Dot(part.Position - centre, lengthAxis) >= 0f) { front += section; frontCount++; }
+                else { back += section; backCount++; }
+            }
+            if (frontCount == 0 || backCount == 0) return 1f;
+            return front / frontCount <= back / backCount ? 1f : -1f;
+        }
+
+        /// <summary>The grip hangs off the barrel line, so the side carrying more outlying mass is down.</summary>
+        private static float UpSign(List<MeshPart> parts, Vector3 centre, Vector3 upAxis)
+        {
+            float above = 0f, below = 0f;
+            foreach (var part in parts)
+            {
+                float offset = Vector3.Dot(part.Position - centre, upAxis);
+                if (offset >= 0f) above += Volume(part) * offset;
+                else below += Volume(part) * -offset;
+            }
+            // A blade or an orb has no grip to find, and either way up is as good as the other.
+            return below >= above ? 1f : -1f;
+        }
+
+        private static float Volume(MeshPart part) => part.Scale.x * part.Scale.y * part.Scale.z;
+
+        /// <summary>How wide one part reads along an arbitrary direction, with its own rotation taken into account.</summary>
+        private static float Extent(MeshPart part, Vector3 direction)
+        {
+            var rotation = Quaternion.Euler(part.Rotation);
+            return Mathf.Abs(Vector3.Dot(rotation * new Vector3(part.Scale.x, 0f, 0f), direction))
+                 + Mathf.Abs(Vector3.Dot(rotation * new Vector3(0f, part.Scale.y, 0f), direction))
+                 + Mathf.Abs(Vector3.Dot(rotation * new Vector3(0f, 0f, part.Scale.z), direction));
+        }
+
+        private static float Span(List<MeshPart> parts, Vector3 centre, Vector3 direction)
+        {
+            float min = float.MaxValue, max = float.MinValue;
+            foreach (var part in parts)
+            {
+                float along = Vector3.Dot(part.Position - centre, direction);
+                float half = Extent(part, direction) * 0.5f;
+                min = Mathf.Min(min, along - half);
+                max = Mathf.Max(max, along + half);
+            }
+            return max > min ? max - min : 0f;
+        }
+
+        private static Vector3 Centroid(List<MeshPart> parts)
+        {
+            Vector3 sum = Vector3.zero;
+            float total = 0f;
+            foreach (var part in parts)
+            {
+                float volume = Mathf.Max(Volume(part), 1e-6f);
+                sum += part.Position * volume;
+                total += volume;
+            }
+            return total > 0f ? sum / total : Vector3.zero;
+        }
+
+        /// <summary>
+        /// Volume-weighted spread of the parts. Each part contributes both where it sits and how it is shaped,
+        /// so a weapon that is one long rotated barrel is described as well as one built from many blocks.
+        /// </summary>
+        private static void Covariance(List<MeshPart> parts, Vector3 centre, out Vector3[] matrix)
+        {
+            matrix = new[] { Vector3.zero, Vector3.zero, Vector3.zero };
+            foreach (var part in parts)
+            {
+                float volume = Mathf.Max(Volume(part), 1e-6f);
+                Vector3 offset = part.Position - centre;
+                for (int r = 0; r < 3; r++)
+                    for (int c = 0; c < 3; c++)
+                        matrix[r][c] += volume * offset[r] * offset[c];
+
+                // A solid box's own spread about its centre, turned into the weapon's frame.
+                var rotation = Quaternion.Euler(part.Rotation);
+                for (int a = 0; a < 3; a++)
+                {
+                    Vector3 axis = rotation * Axis(a);
+                    float half = part.Scale[a] * 0.5f;
+                    float weight = volume * half * half / 3f;
+                    for (int r = 0; r < 3; r++)
+                        for (int c = 0; c < 3; c++)
+                            matrix[r][c] += weight * axis[r] * axis[c];
+                }
+            }
+        }
+
+        /// <summary>Power iteration: enough for the one dominant direction, and no eigen solver to get wrong.</summary>
+        private static Vector3 Dominant(Vector3[] matrix, Vector3 seed)
+        {
+            Vector3 best = Vector3.zero;
+            foreach (var start in new[] { seed, Vector3.right, Vector3.up })
+            {
+                Vector3 v = start;
+                for (int i = 0; i < 64; i++)
+                {
+                    v = Multiply(matrix, v);
+                    if (v.sqrMagnitude < 1e-20f) { v = Vector3.zero; break; }
+                    v.Normalize();
+                }
+                if (v.sqrMagnitude > 0.5f && Vector3.Dot(Multiply(matrix, v), v) > Vector3.Dot(Multiply(matrix, best), best))
+                    best = v;
+            }
+            return best.sqrMagnitude > 0.5f ? best : Vector3.forward;
+        }
+
+        private static Vector3 DominantOrthogonalTo(Vector3[] matrix, Vector3 axis)
+        {
+            Vector3 best = Vector3.zero;
+            foreach (var start in new[] { Vector3.up, Vector3.right, Vector3.forward })
+            {
+                Vector3 v = Vector3.ProjectOnPlane(start, axis);
+                if (v.sqrMagnitude < 1e-8f) continue;
+                v.Normalize();
+                for (int i = 0; i < 64; i++)
+                {
+                    v = Vector3.ProjectOnPlane(Multiply(matrix, v), axis);
+                    if (v.sqrMagnitude < 1e-20f) { v = Vector3.zero; break; }
+                    v.Normalize();
+                }
+                if (v.sqrMagnitude > 0.5f && Vector3.Dot(Multiply(matrix, v), v) > Vector3.Dot(Multiply(matrix, best), best))
+                    best = v;
+            }
+            if (best.sqrMagnitude <= 0.5f)
+            {
+                // Perfectly round about its length: any perpendicular will do.
+                best = Vector3.ProjectOnPlane(Vector3.up, axis);
+                if (best.sqrMagnitude < 1e-8f) best = Vector3.ProjectOnPlane(Vector3.right, axis);
+                best.Normalize();
+            }
+            return best;
+        }
+
+        private static Vector3 Multiply(Vector3[] matrix, Vector3 v) =>
+            new Vector3(Vector3.Dot(matrix[0], v), Vector3.Dot(matrix[1], v), Vector3.Dot(matrix[2], v));
+
+        private static Vector3 Axis(int index) => index == 0 ? Vector3.right : index == 1 ? Vector3.up : Vector3.forward;
 
         /// <summary>Front of the weapon, used when the model forgets to place a muzzle.</summary>
         public static float Furthest(List<MeshPart> parts)
