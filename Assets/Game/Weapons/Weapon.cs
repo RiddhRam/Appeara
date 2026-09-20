@@ -108,6 +108,7 @@ namespace Armory
             Vector3 origin = Muzzle != null ? Muzzle.position : aim.position;
             var arrow = SpawnProjectile(origin, aim.rotation * Vector3.forward * (Spec.ProjectileSpeed * SwingAndDraw.DrawSpeedMultiplier(held)));
             if (arrow != null) arrow.DamageScale = SwingAndDraw.DrawDamageMultiplier(held);
+            Effects.Muzzle(Spec, origin, aim.rotation * Vector3.forward, Muzzle);
             source.pitch = Mathf.Lerp(1.15f, 0.85f, SwingAndDraw.DrawPower(held));
             source.PlayOneShot(FireClip != null ? FireClip : ProceduralSfx.Shot(Spec.Payload), 0.9f);
         }
@@ -122,6 +123,8 @@ namespace Armory
                 if (Spec.FireMode == FireMode.Thrown) direction = Vector3.Slerp(direction, Vector3.up, 0.12f);
                 SpawnProjectile(origin, direction * Spec.ProjectileSpeed);
             }
+            // Parented to the muzzle so the flash rides the weapon instead of hanging in the air behind a turn.
+            Effects.Muzzle(Spec, origin, aim.rotation * Vector3.forward, Muzzle);
             source.pitch = Random.Range(0.93f, 1.07f);
             source.PlayOneShot(FireClip != null ? FireClip : ProceduralSfx.Shot(Spec.Payload), FireClip != null ? 0.9f : 0.6f);
         }
@@ -184,6 +187,8 @@ namespace Armory
                 enemy.TakeHit(Spec, Spec.Damage * 0.1f, point);
                 enemy.ApplyStatus(Spec.Payload, Spec.Damage * 0.1f);
                 if (Spec.Has(Mods.Slow) && enemy.Alive) enemy.ApplySlow(0.45f, 1f);
+                // Sparks at a third of the tick rate: ten impact bursts a second per target would swamp the pool.
+                if (beamTicks % 3 == 0) Effects.Impact(Spec, point, -direction);
                 // Area effects pulse every half second so beams with splash/chain don't melt the frame.
                 if (beamTicks % 5 == 0)
                 {

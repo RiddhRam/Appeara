@@ -9,9 +9,28 @@ namespace Armory
     {
         private static readonly List<Enemy> scratch = new List<Enemy>();
 
+        /// <summary>
+        /// The authored particle art, keyed by payload. Every one of these falls back to the procedural burst
+        /// when the effect library has no row, so a half-built art package still plays a readable hit.
+        /// </summary>
+        public static void Impact(ParsedWeapon weapon, Vector3 point, Vector3 awayFromSurface)
+        {
+            if (weapon == null) return;
+            if (ArtVfx.PlayDirected(weapon.Payload + "Impact", point, awayFromSurface) == null)
+                Burst(point, weapon.Color, 1.2f);
+        }
+
+        /// <summary>Parented to the muzzle so the flash tracks the weapon through the rest of the shot.</summary>
+        public static void Muzzle(ParsedWeapon weapon, Vector3 point, Vector3 forward, Transform parent = null)
+        {
+            if (weapon == null) return;
+            ArtVfx.PlayDirected("MuzzleFlash_" + weapon.Payload, point, forward, 1f, parent);
+        }
+
         /// <summary>Applies a weapon's on-hit effects after a direct hit (or at a detonation point when <paramref name="direct"/> is null).</summary>
         public static void OnHit(ParsedWeapon weapon, Vector3 point, Enemy direct, float damage)
         {
+            Impact(weapon, point, direct != null ? (point - direct.Center).normalized : Vector3.up);
             if (direct != null)
             {
                 direct.TakeHit(weapon, damage, point);
@@ -24,7 +43,8 @@ namespace Armory
 
         public static void Explode(ParsedWeapon weapon, Vector3 point, float radius, float damage, Enemy skip = null)
         {
-            Burst(point, weapon.Color, radius * 2f);
+            // Scaled to the blast so the art tells the player how far the splash actually reached.
+            if (ArtVfx.Play("ExplosiveImpact", point, radius * 0.6f) == null) Burst(point, weapon.Color, radius * 2f);
             ProceduralSfx.PlayAt(ProceduralSfx.Boom, point, 0.9f);
             scratch.Clear();
             scratch.AddRange(Enemy.All);
