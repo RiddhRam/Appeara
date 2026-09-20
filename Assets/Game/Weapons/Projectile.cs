@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using Armory.AI;
 using Armory.Core;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace Armory
@@ -10,6 +12,7 @@ namespace Armory
     /// </summary>
     public sealed class Projectile : MonoBehaviour
     {
+        private static readonly ProfilerMarker DestroyMarker = new ProfilerMarker("Armory.Projectile.Destroy");
         public static readonly List<Projectile> All = new List<Projectile>();
         /// <summary>Debug: which non-enemy colliders projectiles hit (bridge "state").</summary>
         public static readonly Dictionary<string, int> SurfaceHits = new Dictionary<string, int>();
@@ -38,8 +41,8 @@ namespace Armory
         private float GravityScale => Thrown ? 1f : Weapon.Has(Mods.Sticky) || Weapon.Shape == ProjectileShape.Mine ? 0.6f : 0f;
         private bool Detonates => Thrown || Weapon.Has(Mods.Sticky) || Weapon.Has(Mods.Proximity) || Weapon.Payload == Payload.Explosive;
 
-        private void OnEnable() => All.Add(this);
-        private void OnDisable() => All.Remove(this);
+        private void OnEnable() { All.Add(this); ArmoryPerformance.Record(PerformanceObjectKind.Projectile, true); }
+        private void OnDisable() { All.Remove(this); ArmoryPerformance.Record(PerformanceObjectKind.Projectile, false); }
 
         public void Launch(ParsedWeapon weapon, Vector3 velocity)
         {
@@ -187,6 +190,7 @@ namespace Armory
 
         public void Kill()
         {
+            using var marker = DestroyMarker.Auto();
             if (!enabled) return;
             enabled = false;
             All.Remove(this);

@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Armory.AI;
 using Armory.Core;
 using TMPro;
 using UnityEngine;
@@ -47,14 +48,20 @@ namespace Armory
         private bool loopClip;
         private float clipTime;
         private bool dying;
+        private MothershipSpawnTrace spawnTrace;
+        private Sentry.ISpan arrivalSpan;
+        private float arrivalStarted;
 
-        public void Initialize(Enemy body, HiveAvatarAssets presentation)
+        public void Initialize(Enemy body, HiveAvatarAssets presentation, MothershipSpawnTrace trace = null)
         {
+            spawnTrace = trace;
             Active = this;
             Body = body;
             Body.Avatar = this;
             Body.ExternallyDriven = true;
             assets = presentation;
+            spawnTrace?.RecordPresentation(assets != null && assets.Model != null,
+                assets != null && assets.Idle != null && assets.Walk != null);
             hazards = new GameObject("Hive Hazards").transform;
             hazards.SetParent(transform.parent, false);
             if (assets != null && (assets.Visual != null || assets.Model != null)) BuildModel();
@@ -249,6 +256,8 @@ namespace Armory
 
         private IEnumerator Encounter()
         {
+            arrivalStarted = Time.realtimeSinceStartup;
+            arrivalSpan = spawnTrace?.StartSpan("gameplay.avatar_arrival", "Mothership Avatar enters the arena");
             Vector3 start = transform.position;
             Vector3 outward = (start - Body.Target).normalized;
             float coreReach = StationCore.Instance != null ? StationCore.Instance.ReachRadius : 5f;
@@ -261,8 +270,13 @@ namespace Armory
             }
             transform.position = destination;
             Ready = true;
-            if (Mothership.Instance != null && Mothership.Instance.ActiveDefendedPrimitive != null)
+            bool inheritedCounter = Mothership.Instance != null && Mothership.Instance.ActiveDefendedPrimitive != null;
+            if (inheritedCounter)
                 Adapt(Mothership.Instance.ActiveDefendedPrimitive);
+            spawnTrace?.FinishSpan(arrivalSpan);
+            arrivalSpan = null;
+            spawnTrace?.Ready(Time.realtimeSinceStartup - arrivalStarted, organs.Length, inheritedCounter);
+            spawnTrace = null;
             Motion(HiveMotion.Idle);
             ArmoryGame.Instance?.ShowBanner("HIVE AVATAR / BREAK THE GLOWING ORGANS", HiveColor);
             int attackIndex = 0;
@@ -378,6 +392,7 @@ namespace Armory
 
         public void Defeated(bool killed)
         {
+            CancelSpawnTrace(killed ? "defeated_before_ready" : "removed_before_ready");
             dying = true;
             Ready = false;
             Phase = "DEFEATED";
@@ -398,9 +413,19 @@ namespace Armory
 
         private void OnDestroy()
         {
+            CancelSpawnTrace("destroyed_before_ready");
             if (animationGraph.IsValid()) animationGraph.Destroy();
             ClearThreats();
             if (Active == this) Active = null;
+        }
+
+        private void CancelSpawnTrace(string reason)
+        {
+            if (spawnTrace == null) return;
+            spawnTrace.FinishSpan(arrivalSpan);
+            arrivalSpan = null;
+            spawnTrace.Cancel(reason);
+            spawnTrace = null;
         }
     }
 }

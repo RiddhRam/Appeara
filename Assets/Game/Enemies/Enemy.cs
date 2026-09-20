@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
+using Armory.AI;
 using Armory.Core;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace Armory
@@ -8,6 +10,7 @@ namespace Armory
     /// <summary>Placeholder alien. Walks to the station core; behaviour and defences come from its kind + mothership counters.</summary>
     public sealed class Enemy : MonoBehaviour
     {
+        private static readonly ProfilerMarker DestroyMarker = new ProfilerMarker("Armory.Enemy.Destroy");
         public static readonly List<Enemy> All = new List<Enemy>();
 
         public EnemyKind Kind;
@@ -47,8 +50,8 @@ namespace Armory
         public bool ShieldUp => ShieldHealth > 0f;
         public Vector3 Center => Avatar != null ? Avatar.AimPoint : ExternallyDriven ? transform.position : transform.position + Vector3.up * (Radius + 0.2f);
 
-        private void OnEnable() => All.Add(this);
-        private void OnDisable() => All.Remove(this);
+        private void OnEnable() { All.Add(this); ArmoryPerformance.Record(PerformanceObjectKind.Enemy, true); }
+        private void OnDisable() { All.Remove(this); ArmoryPerformance.Record(PerformanceObjectKind.Enemy, false); }
 
         public void Init(EnemyKind kind, Vector3 target)
         {
@@ -300,6 +303,7 @@ namespace Armory
 
         public void Die(bool killed)
         {
+            using var marker = DestroyMarker.Auto();
             if (!enabled) return;
             Health = 0f;
             enabled = false;

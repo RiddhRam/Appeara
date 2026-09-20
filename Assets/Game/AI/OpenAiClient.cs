@@ -96,14 +96,15 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
         }
 
         /// <summary>Chooses a bounded counter package for a validated runtime weapon.</summary>
-        public async Awaitable<WeaponCounterReply> AnalyzeWeaponCounters(ParsedWeapon weapon, string currentCounters, string enemies)
+        public async Awaitable<WeaponCounterReply> AnalyzeWeaponCounters(ParsedWeapon weapon, string currentCounters, string enemies, IArmoryTrace trace = null)
         {
             if (weapon == null) return null;
             string traits = string.Join(", ", weapon.Primitives());
             string user = $"Weapon: {weapon.Name}\nMode: {weapon.FireMode}\nPayload: {weapon.Payload}\nTraits: {traits}\n" +
                           $"Rate: {weapon.FireRate:0.##}/s; count: {weapon.ProjectileCount}; spread: {weapon.SpreadDeg:0.#}; speed: {weapon.ProjectileSpeed:0.#}\n" +
                           $"Current counters: {currentCounters}\nCurrent enemies: {enemies}";
-            string json = await Chat(settings.MothershipModel, WeaponCounterSystemPrompt, user, "weapon_counter", WeaponCounterSchema(), settings.MothershipTimeoutSeconds);
+            string json = await Chat(settings.MothershipModel, WeaponCounterSystemPrompt, user, "weapon_counter", WeaponCounterSchema(),
+                settings.MothershipTimeoutSeconds, trace, "openai.counter_select");
             if (json == null) return null;
             try { return JsonUtility.FromJson<WeaponCounterReply>(json); }
             catch (Exception error) { LastError = error.Message; return null; }
@@ -223,7 +224,7 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
         private const string SketchNote = " The player also sketched the weapon; use the drawing for its shape, silhouette and parts.";
 
         private async Awaitable<string> Chat(string model, string system, string user, string schemaName, string schema, float timeout,
-            FabricationTrace trace = null, string operation = "openai.chat", string imagePng = null)
+            IArmoryTrace trace = null, string operation = "openai.chat", string imagePng = null)
         {
             var span = trace?.StartSpan(operation, schemaName);
             span?.SetTag("ai.model", model);

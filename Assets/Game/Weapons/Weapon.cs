@@ -1,4 +1,5 @@
 using Armory.Core;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace Armory
@@ -6,6 +7,7 @@ namespace Armory
     /// <summary>A held, assembled weapon. Fires projectiles/thrown objects or a continuous beam from the rig's aim pose.</summary>
     public sealed class Weapon : MonoBehaviour
     {
+        private static readonly ProfilerMarker ProjectileSpawnMarker = new ProfilerMarker("Armory.Projectile.Spawn");
         public ParsedWeapon Spec;
         public Transform Muzzle;
         public AudioClip FireClip;
@@ -56,6 +58,7 @@ namespace Armory
 
         private void SpawnProjectile(Vector3 origin, Vector3 velocity)
         {
+            using var marker = ProjectileSpawnMarker.Auto();
             float size = Spec.Shape == ProjectileShape.Mine ? 0.16f : Spec.FireMode == FireMode.Thrown ? 0.14f : 0.08f;
             PrimitiveType type = Spec.Shape == ProjectileShape.Disc || Spec.Shape == ProjectileShape.Mine ? PrimitiveType.Cylinder : Spec.Shape == ProjectileShape.Bolt ? PrimitiveType.Capsule : PrimitiveType.Sphere;
             Vector3 scale = Spec.Shape == ProjectileShape.Bolt ? new Vector3(size * 0.6f, size * 2.5f, size * 0.6f)
