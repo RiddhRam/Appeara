@@ -231,6 +231,19 @@ namespace Armory.Tests
         }
 
         [Test]
+        public void PistolLaidAlongXIgnoresASchemaDefaultMuzzleOnZ()
+        {
+            var parts = Express(Pistol, Quaternion.Euler(0f, 90f, 0f), 1f, out _);
+            var muzzle = new Vector3(0f, 0f, 0.3f); // body says X; stale/default schema value says Z
+
+            WeaponMesh.Fit(parts, ref muzzle);
+
+            AssertUsableInTheHand(parts, muzzle, "sideways pistol with inconsistent muzzle");
+            WeaponMesh.Bounds(parts, out var min, out var max);
+            Assert.Greater((max - min).z, (max - min).x, "the pistol body still lies broadside across the hand");
+        }
+
+        [Test]
         public void AMuzzlePlacedOnTheWrongEndDoesNotTurnTheWeaponRound()
         {
             // The grip is unambiguous here, so a muzzle behind the weapon is the thing that must be overruled.

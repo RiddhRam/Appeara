@@ -143,7 +143,7 @@ namespace Armory.Core
             Vector3 second = DominantOrthogonalTo(covariance, first);
             Vector3 third = Vector3.Cross(first, second).normalized;
 
-            Vector3 forward = ForwardAxis(parts, centre, muzzle, first, second, third);
+            Vector3 forward = ForwardAxis(parts, centre, muzzle, first, second, third, out bool muzzleTrusted);
             Vector3 up = UpAxis(parts, centre, forward, first, second, third);
             // Every part sitting on one line leaves nothing to orient by; the model's own frame is as good as any.
             if (Mathf.Abs(Vector3.Dot(forward, up)) > 0.99f) return Quaternion.identity;
@@ -156,7 +156,16 @@ namespace Armory.Core
                 // weapon has to turn each part with it or the barrel becomes a slab.
                 part.Rotation = (rotation * Quaternion.Euler(part.Rotation)).eulerAngles;
             }
-            muzzle = rotation * muzzle;
+            if (!muzzleTrusted)
+            {
+                // Some otherwise useful answers lay every part along X but leave the schema-example muzzle on Z.
+                // Once that empty axis is rejected, put the muzzle on the actual front of the recovered geometry.
+                float front = 0f;
+                foreach (var part in parts)
+                    front = Mathf.Max(front, Vector3.Dot(part.Position - rotation * centre, Vector3.forward) + Extent(part, Vector3.forward) * 0.5f);
+                muzzle = rotation * centre + Vector3.forward * Mathf.Max(front, MinPart);
+            }
+            else muzzle = rotation * muzzle;
             return rotation;
         }
 
@@ -218,21 +227,32 @@ namespace Armory.Core
         /// Chooses the weapon's forward axis. A credible muzzle selects among the geometry's own principal axes;
         /// otherwise the thinner end of the longest axis is treated as the barrel.
         /// </summary>
-        private static Vector3 ForwardAxis(List<MeshPart> parts, Vector3 centre, Vector3 muzzle, Vector3 first, Vector3 second, Vector3 third)
+        private static Vector3 ForwardAxis(List<MeshPart> parts, Vector3 centre, Vector3 muzzle, Vector3 first, Vector3 second, Vector3 third, out bool muzzleTrusted)
         {
+            muzzleTrusted = false;
             Vector3 toMuzzle = muzzle - centre;
             if (toMuzzle.magnitude > Reach(parts, centre) * 0.15f)
             {
                 Vector3 direction = toMuzzle.normalized;
+                Vector3[] axes = { first, second, third };
+                float largestSpan = 0f;
+                foreach (var axis in axes) largestSpan = Mathf.Max(largestSpan, Span(parts, centre, axis));
+
                 Vector3 best = first;
-                float bestAlignment = Mathf.Abs(Vector3.Dot(first, direction));
-                foreach (var axis in new[] { second, third })
+                float bestAlignment = -1f;
+                foreach (var axis in axes)
                 {
+                    // Never let a declared muzzle select the near-empty thickness axis of a side-view model.
+                    if (Span(parts, centre, axis) < largestSpan * 0.35f) continue;
                     float alignment = Mathf.Abs(Vector3.Dot(axis, direction));
                     if (alignment > bestAlignment) { bestAlignment = alignment; best = axis; }
                 }
                 if (Vector3.Dot(best, direction) < 0f) best = -best;
-                return Vector3.Angle(direction, best) <= MuzzleTrustDegrees ? direction : best;
+                if (bestAlignment >= 0f && Vector3.Angle(direction, best) <= MuzzleTrustDegrees)
+                {
+                    muzzleTrusted = true;
+                    return direction;
+                }
             }
             return first * ForwardSign(parts, centre, first, second, muzzle);
         }
