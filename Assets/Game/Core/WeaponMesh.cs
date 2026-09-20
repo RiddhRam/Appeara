@@ -48,6 +48,29 @@ namespace Armory.Core
         /// <summary>Parsing keeps proportions in the model's own units; only sanity bounds are applied here.</summary>
         public const float MaxCoordinate = 50f;
         public const float MinPart = 0.001f;
+        public const float MinPolishedPart = 0.008f;
+        public const int MaxGlowParts = 4;
+
+        private static readonly Color StructureColor = new Color(0.08f, 0.09f, 0.12f, 1f);
+
+        /// <summary>Readable held scale by silhouette, without requiring another field in the model schema.</summary>
+        public static float TargetLengthFor(ParsedWeapon weapon)
+        {
+            if (weapon == null) return TargetLength;
+            string description = string.IsNullOrWhiteSpace(weapon.DesignPrompt) ? weapon.Name : weapon.DesignPrompt;
+            if (NameContains(description, "pistol", "handgun", "sidearm", "revolver")) return 0.30f;
+            if (NameContains(description, "launcher", "bazooka", "rocket", "cannon", "mortar")) return 0.56f;
+            if (NameContains(description, "machine gun", "machinegun", "minigun", "gatling")) return 0.48f;
+
+            switch (weapon.FireMode)
+            {
+                case FireMode.Thrown: return 0.22f;
+                case FireMode.Melee: return 0.64f;
+                case FireMode.Bow: return 0.58f;
+                case FireMode.Beam: return 0.50f;
+                default: return weapon.Payload == Payload.Explosive ? 0.54f : TargetLength;
+            }
+        }
 
         public static List<MeshPart> Parse(string json, Color fallbackColor, out Vector3 muzzle)
         {
@@ -119,6 +142,100 @@ namespace Armory.Core
         }
 
         /// <summary>
+        /// Applies the station's shared visual language after normalization: clean angles, readable pieces, a
+        /// restrained amount of emission, and a three-colour palette derived from the requested weapon colour.
+        /// </summary>
+        public static void Polish(List<MeshPart> parts, Color accent)
+        {
+            if (parts == null || parts.Count == 0) return;
+
+            MeshPart largest = parts[0];
+            foreach (var part in parts)
+            {
+                if (LargestDimension(part) > LargestDimension(largest)) largest = part;
+                part.Rotation = new Vector3(SnapAngle(part.Rotation.x), SnapAngle(part.Rotation.y), SnapAngle(part.Rotation.z));
+            }
+
+            // Keep at least one part even when a pathological response consists entirely of tiny details.
+            for (int i = parts.Count - 1; i >= 0; i--)
+                if (parts[i] != largest && LargestDimension(parts[i]) < MinPolishedPart)
+                    parts.RemoveAt(i);
+
+            var glowing = parts.FindAll(part => part.Glow);
+            glowing.Sort((a, b) => Volume(b).CompareTo(Volume(a)));
+            for (int i = MaxGlowParts; i < glowing.Count; i++) glowing[i].Glow = false;
+
+            accent.a = 1f;
+            Color shell = Color.Lerp(StructureColor, accent, 0.45f);
+            shell.a = 1f;
+            Color energy = Color.Lerp(accent, Color.white, 0.18f);
+            energy.a = 1f;
+            foreach (var part in parts)
+            {
+                if (part.Glow) part.Color = energy;
+                else part.Color = part.Color.maxColorComponent >= 0.45f ? shell : StructureColor;
+            }
+        }
+
+        /// <summary>
+        /// Adds a few unmistakable category-defining forms after the vision model's reconstruction. This prevents
+        /// visually different blueprints from collapsing into the same generic primitive gun.
+        /// </summary>
+        public static void ApplyArchetypeSignature(List<MeshPart> parts, ParsedWeapon weapon, ref Vector3 muzzle)
+        {
+            if (parts == null || weapon == null) return;
+            string description = string.IsNullOrWhiteSpace(weapon.DesignPrompt) ? weapon.Name : weapon.DesignPrompt;
+
+            if (NameContains(description, "launcher", "bazooka", "rocket", "cannon", "mortar"))
+            {
+                MakeRoom(parts, 2);
+                parts.Add(new MeshPart
+                {
+                    Shape = PartShape.Cylinder,
+                    Position = new Vector3(0f, 0.025f, 0.28f),
+                    Rotation = new Vector3(90f, 0f, 0f),
+                    Scale = new Vector3(0.14f, 0.44f, 0.14f),
+                    Color = Color.white,
+                });
+                parts.Add(new MeshPart
+                {
+                    Shape = PartShape.Disc,
+                    Position = new Vector3(0f, 0.025f, 0.51f),
+                    Rotation = new Vector3(90f, 0f, 0f),
+                    Scale = new Vector3(0.18f, 0.035f, 0.18f),
+                    Color = Color.black,
+                });
+                muzzle = new Vector3(0f, 0.025f, 0.53f);
+                return;
+            }
+
+            if (NameContains(description, "machine gun", "machinegun", "minigun", "gatling"))
+            {
+                MakeRoom(parts, 4);
+                for (int i = -1; i <= 1; i++)
+                {
+                    parts.Add(new MeshPart
+                    {
+                        Shape = PartShape.Cylinder,
+                        Position = new Vector3(i * 0.028f, 0.025f, 0.37f),
+                        Rotation = new Vector3(90f, 0f, 0f),
+                        Scale = new Vector3(0.024f, 0.23f, 0.024f),
+                        Color = Color.black,
+                    });
+                }
+                parts.Add(new MeshPart
+                {
+                    Shape = PartShape.Box,
+                    Position = new Vector3(0f, -0.075f, 0.13f),
+                    Rotation = new Vector3(345f, 0f, 0f),
+                    Scale = new Vector3(0.10f, 0.15f, 0.11f),
+                    Color = Color.white,
+                });
+                muzzle = new Vector3(0f, 0.025f, 0.49f);
+            }
+        }
+
+        /// <summary>
         /// Uses the semantic muzzle point to correct the common vision-model mistake of building the weapon along
         /// X, Y, or -Z. Snapping to a cardinal axis avoids introducing a small roll or pitch when the muzzle is
         /// intentionally a little above or to the side of the grip.
@@ -152,6 +269,33 @@ namespace Armory.Core
             float furthest = 0.2f;
             foreach (var part in parts) furthest = Mathf.Max(furthest, part.Position.z + part.Scale.z * 0.5f);
             return furthest;
+        }
+
+        private static float LargestDimension(MeshPart part) =>
+            Mathf.Max(part.Scale.x, Mathf.Max(part.Scale.y, part.Scale.z));
+
+        private static float Volume(MeshPart part) => part.Scale.x * part.Scale.y * part.Scale.z;
+
+        private static float SnapAngle(float degrees) => Mathf.Repeat(Mathf.Round(degrees / 15f) * 15f, 360f);
+
+        private static bool NameContains(string name, params string[] terms)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return false;
+            foreach (string term in terms)
+                if (name.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+            return false;
+        }
+
+        private static void MakeRoom(List<MeshPart> parts, int additions)
+        {
+            while (parts.Count > MaxParts - additions)
+            {
+                MeshPart smallest = parts[0];
+                foreach (var part in parts)
+                    if (Volume(part) < Volume(smallest)) smallest = part;
+                parts.Remove(smallest);
+            }
         }
 
         private static float Sane(float value) =>
