@@ -67,6 +67,8 @@ namespace Armory
 
             Rig = new GameObject("Armory Rig").AddComponent<ArmoryRig>();
             Rig.transform.SetParent(transform, false);
+            // Spawn on the approach to the core, outside its prop, looking back toward the centre.
+            Rig.transform.localPosition = Vector3.back * Mathf.Max(PadRadius, CoreReachRadius + 3f);
 
             var xrPerformance = new GameObject("XR Performance Tuner").AddComponent<XRPerformanceTuner>();
             xrPerformance.transform.SetParent(transform, false);
