@@ -48,7 +48,7 @@ namespace Armory
         private AudioSource shipVoice;
         private AudioSource motherVoice;
         private AudioSource fabHum;
-        private readonly Queue<(AudioSource source, Awaitable<AudioClip> clip)> voiceQueue = new Queue<(AudioSource, Awaitable<AudioClip>)>();
+        private readonly Queue<(AudioSource source, Awaitable<AudioClip> clip, FabricationTrace trace)> voiceQueue = new Queue<(AudioSource, Awaitable<AudioClip>, FabricationTrace)>();
         private GameObject hologram;
         private BlueprintHologram wristBlueprint;
         private BlueprintHologram coreBlueprint;
@@ -58,13 +58,15 @@ namespace Armory
         private bool probing;
         private bool textEntryOpen;
         private string typed = "";
+        private FabricationTrace activeFabrication;
+        private Sentry.ISpan micSpan;
 
         private void Awake()
         {
             Instance = this;
             var keys = ArmoryKeys.Load();
-            if (!Settings.Offline && keys.HasOpenAI) OpenAI = new OpenAiClient(keys.openai, Settings);
-            if (!Settings.Offline && keys.HasElevenLabs) ElevenLabs = new ElevenLabsClient(keys.elevenlabs, Settings);
+            if (!Settings.Offline && (keys.HasOpenAI || Settings.UsesGateway)) OpenAI = new OpenAiClient(keys.openai, Settings);
+            if (!Settings.Offline && (keys.HasElevenLabs || Settings.UsesGateway)) ElevenLabs = new ElevenLabsClient(keys.elevenlabs, Settings);
             if (OpenAI == null) Debug.LogWarning("ShipAI: OpenAI offline (no key or Offline set). Using keyword interpreter.");
             if (ElevenLabs == null) Debug.LogWarning("ShipAI: ElevenLabs offline. Subtitles only.");
 
@@ -178,6 +180,9 @@ namespace Armory
         private void BeginRecording()
         {
             if (!Mic.Ready && !Mic.Start()) { Status = Mic.LastReport + " - press T to type"; return; }
+            activeFabrication = ArmoryTelemetry.StartFabrication("voice", CurrentWave(), Settings.Offline || OpenAI == null, Settings.UsesGateway);
+            micSpan = activeFabrication.StartSpan("mic.capture", "Push-to-talk microphone capture");
+            micSpan?.SetTag("mic.device", Mic.Device ?? "default");
             Mic.BeginTalk();
             Status = "Listening on " + MicCapture.Short(Mic.Device);
             ProceduralSfx.PlayAt(ProceduralSfx.Blip, Rig.Head.transform.position, 0.5f);
@@ -187,21 +192,30 @@ namespace Armory
         {
             var samples = Mic.EndTalk(out int rate);
             Status = Mic.LastReport;
-            if (samples == null) return;
-            _ = TranscribeAndFabricate(WavPcm.EncodeWav(samples, 1, rate));
+            micSpan?.SetTag("mic.verdict", Mic.LastVerdict);
+            micSpan?.SetTag("mic.peak", Mic.LastPeak.ToString("0.00000", System.Globalization.CultureInfo.InvariantCulture));
+            micSpan?.SetTag("mic.rms", Mic.LastRms.ToString("0.00000", System.Globalization.CultureInfo.InvariantCulture));
+            activeFabrication?.FinishSpan(micSpan);
+            ArmoryTelemetry.MicLog(activeFabrication, Mic.Device, Mic.LastPeak, Mic.LastRms, Mic.LastVerdict, Mic.LastDurationSeconds);
+            micSpan = null;
+
+            var trace = activeFabrication;
+            activeFabrication = null;
+            if (samples == null) { trace?.Complete(); return; }
+            _ = TranscribeAndFabricate(WavPcm.EncodeWav(samples, 1, rate), trace);
         }
 
         /// <summary>WAV bytes (any sample rate) → transcript → weapon. Mic push-to-talk ends here.</summary>
-        public async Awaitable TranscribeAndFabricate(byte[] wav)
+        public async Awaitable TranscribeAndFabricate(byte[] wav, FabricationTrace trace = null)
         {
-            if (OpenAI == null) { Status = "Offline: press T to type or 1-5 for presets."; return; }
+            if (OpenAI == null) { Status = "Offline: press T to type or 1-5 for presets."; trace?.Complete(); return; }
             Busy = true;
             Status = "TRANSCRIBING...";
             string text = null;
-            try { text = await OpenAI.Transcribe(wav); }
+            try { text = await OpenAI.Transcribe(wav, trace); }
             finally { Busy = false; }
-            if (string.IsNullOrWhiteSpace(text)) { Status = "Didn't catch that. Try again."; return; }
-            await Fabricate(text);
+            if (string.IsNullOrWhiteSpace(text)) { Status = "Didn't catch that. Try again."; trace?.Complete(); return; }
+            await Fabricate(text, trace);
         }
 
         /// <summary>"Ready", "start the wave", "bring them on" - starts the wave instead of building a weapon.</summary>
@@ -215,7 +229,7 @@ namespace Armory
             return false;
         }
 
-        public async Awaitable Fabricate(string request)
+        public async Awaitable Fabricate(string request, FabricationTrace trace = null)
         {
             if (Busy) return;
             var director = WaveDirector.Instance;
@@ -227,6 +241,7 @@ namespace Armory
                 return;
             }
             Busy = true;
+            trace ??= ArmoryTelemetry.StartFabrication("text", CurrentWave(), Settings.Offline || OpenAI == null, Settings.UsesGateway);
             LastTranscript = request;
             AddSubtitle("YOU", request);
             Status = "FABRICATING...";
@@ -236,64 +251,82 @@ namespace Armory
                 string json = null;
                 string sketch = SketchBoard.Instance != null ? SketchBoard.Instance.EncodeBase64() : null;
                 if (sketch != null) AddSubtitle("YOU", "[sketch attached]");
-                if (OpenAI != null) json = await OpenAI.InterpretWeapon(request, BattleContext(), sketch);
+                if (OpenAI != null) json = await OpenAI.InterpretWeapon(request, BattleContext(), sketch, trace);
                 var parsed = WeaponSpecParser.Parse(json);
                 if (parsed == null)
                 {
+                    trace.MarkFallback(OpenAI == null ? "offline_mode" : "invalid_or_missing_model_output");
                     parsed = WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(request));
                     if (OpenAI != null) parsed.ShipAILine = "Uplink failed, so I improvised: " + parsed.Name + ".";
                 }
-                Equip(parsed, announce: true);
+                var assemble = trace.StartSpan("unity.assemble", "Build weapon in player hand");
+                try { Equip(parsed, announce: true, trace); }
+                finally { trace.FinishSpan(assemble); }
                 Status = OpenAI != null ? $"Built in {OpenAI.LastLatency:0.0}s" : "Built offline";
             }
             catch (System.Exception error)
             {
                 Debug.LogException(error);
+                trace.MarkFallback("fabrication_exception");
                 Status = "Fabrication error: " + error.Message;
             }
             finally
             {
                 ShowHologram(false);
                 Busy = false;
+                trace.Complete();
             }
         }
 
-        private void Equip(ParsedWeapon spec, bool announce)
+        private void Equip(ParsedWeapon spec, bool announce, FabricationTrace trace = null)
         {
             if (spec == null) return;
             if (Current != null) Destroy(Current.gameObject);
             Current = WeaponAssembler.Build(spec, Rig.Aim);
-            ArmoryGame.Instance?.OnWeaponEquipped(spec);
             if (!announce) return;
+            ArmoryGame.Instance?.OnWeaponEquipped(spec);
             ProceduralSfx.PlayAt(ProceduralSfx.Fabricate, Rig.Aim.position, 0.7f);
-            SayShip(string.IsNullOrWhiteSpace(spec.ShipAILine) ? "Fabricated: " + spec.Name + "." : spec.ShipAILine, spec.Name.ToUpperInvariant());
-            if (ElevenLabs != null && Settings.GenerateWeaponSfx && spec.SfxPrompt != null) _ = LoadWeaponSfx(Current, spec);
-            if (OpenAI != null && Settings.GenerateBlueprints) _ = LoadBlueprint(spec);
+            SayShip(string.IsNullOrWhiteSpace(spec.ShipAILine) ? "Fabricated: " + spec.Name + "." : spec.ShipAILine, spec.Name.ToUpperInvariant(), trace);
+            if (ElevenLabs != null && Settings.GenerateWeaponSfx && spec.SfxPrompt != null)
+            {
+                trace?.AddAsyncWork();
+                _ = LoadWeaponSfx(Current, spec, trace);
+            }
+            if (OpenAI != null && Settings.GenerateBlueprints)
+            {
+                trace?.AddAsyncWork();
+                _ = LoadBlueprint(spec, trace);
+            }
         }
 
         /// <summary>AI concept-art blueprint for the new weapon, cached on disk by name so demo repeats are instant.</summary>
-        private async Awaitable LoadBlueprint(ParsedWeapon spec)
+        private async Awaitable LoadBlueprint(ParsedWeapon spec, FabricationTrace trace = null)
         {
-            int request = ++blueprintRequest;
-            wristBlueprint.SetPending(spec.Name);
-            coreBlueprint.SetPending(spec.Name);
-
-            string dir = System.IO.Path.Combine(Application.temporaryCachePath, "armory-blueprints");
-            System.IO.Directory.CreateDirectory(dir);
-            string path = System.IO.Path.Combine(dir, Hash(Settings.ImageModel + spec.Name) + ".png");
-            byte[] png = System.IO.File.Exists(path) ? System.IO.File.ReadAllBytes(path) : null;
-            if (png == null)
+            try
             {
-                png = await OpenAI.GenerateBlueprint(spec.Name, ColorName(spec.Color), Flavour(spec.Payload));
-                if (png != null) System.IO.File.WriteAllBytes(path, png);
+                int request = ++blueprintRequest;
+                wristBlueprint.SetPending(spec.Name);
+                coreBlueprint.SetPending(spec.Name);
+
+                string dir = System.IO.Path.Combine(Application.temporaryCachePath, "armory-blueprints");
+                System.IO.Directory.CreateDirectory(dir);
+                string path = System.IO.Path.Combine(dir, Hash(Settings.ImageModel + spec.Name) + ".png");
+                byte[] png = System.IO.File.Exists(path) ? System.IO.File.ReadAllBytes(path) : null;
+                if (png == null)
+                {
+                    png = await OpenAI.GenerateBlueprint(spec.Name, ColorName(spec.Color), Flavour(spec.Payload), trace);
+                    if (png != null) System.IO.File.WriteAllBytes(path, png);
+                }
+                // A newer weapon may have been requested while this one generated.
+                if (request != blueprintRequest || png == null) return;
+                var texture = new Texture2D(2, 2, TextureFormat.RGBA32, true);
+                texture.LoadImage(png);
+                wristBlueprint.Show(texture, spec.Name);
+                coreBlueprint.Show(texture, spec.Name);
+                ProceduralSfx.PlayAt(ProceduralSfx.Fabricate, coreBlueprint.transform.position, 0.8f);
             }
-            // A newer weapon may have been requested while this one generated.
-            if (request != blueprintRequest || png == null) return;
-            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, true);
-            texture.LoadImage(png);
-            wristBlueprint.Show(texture, spec.Name);
-            coreBlueprint.Show(texture, spec.Name);
-            ProceduralSfx.PlayAt(ProceduralSfx.Fabricate, coreBlueprint.transform.position, 0.8f);
+            catch (System.Exception error) { Debug.LogWarning("Blueprint generation failed: " + error.Message); }
+            finally { trace?.Complete(); }
         }
 
         private static string Flavour(Payload payload)
@@ -329,12 +362,17 @@ namespace Armory
             return System.BitConverter.ToString(md5.ComputeHash(Encoding.UTF8.GetBytes(text))).Replace("-", "").ToLowerInvariant();
         }
 
-        private async Awaitable LoadWeaponSfx(Weapon weapon, ParsedWeapon spec)
+        private async Awaitable LoadWeaponSfx(Weapon weapon, ParsedWeapon spec, FabricationTrace trace = null)
         {
-            float seconds = spec.FireMode == FireMode.Beam ? 2f : spec.FireRate > 6f ? 0.5f : 0.9f;
-            string prompt = spec.SfxPrompt + (spec.FireMode == FireMode.Beam ? ", continuous loopable hum" : ", single short shot, no music");
-            var clip = await ElevenLabs.SoundEffect(prompt, seconds);
-            if (clip != null && weapon != null) weapon.FireClip = clip;
+            try
+            {
+                float seconds = spec.FireMode == FireMode.Beam ? 2f : spec.FireRate > 6f ? 0.5f : 0.9f;
+                string prompt = spec.SfxPrompt + (spec.FireMode == FireMode.Beam ? ", continuous loopable hum" : ", single short shot, no music");
+                var clip = await ElevenLabs.SoundEffect(prompt, seconds, trace);
+                if (clip != null && weapon != null) weapon.FireClip = clip;
+            }
+            catch (System.Exception error) { Debug.LogWarning("Weapon SFX failed: " + error.Message); }
+            finally { trace?.Complete(); }
         }
 
         private string BattleContext()
@@ -370,16 +408,17 @@ namespace Armory
             }
         }
 
-        public void SayShip(string text, string banner = null) => Say("ARIA", text, shipVoice, Settings.ShipVoiceId, 0.55f, 0.25f, banner);
+        public void SayShip(string text, string banner = null, FabricationTrace trace = null) => Say("ARIA", text, shipVoice, Settings.ShipVoiceId, 0.55f, 0.25f, banner, trace);
         public void SayMothership(string text, string banner = null) => Say("MOTHERSHIP", text, motherVoice, Settings.MothershipVoiceId, 0.3f, 0.6f, banner);
 
-        private void Say(string speaker, string text, AudioSource source, string voiceId, float stability, float style, string banner)
+        private void Say(string speaker, string text, AudioSource source, string voiceId, float stability, float style, string banner, FabricationTrace trace = null)
         {
             if (string.IsNullOrWhiteSpace(text)) return;
             if (banner != null) ArmoryGame.Instance?.ShowBanner(banner, speaker == "MOTHERSHIP" ? new Color(1f, 0.35f, 0.4f) : new Color(0.4f, 0.9f, 1f));
             AddSubtitle(speaker, text);
             if (ElevenLabs == null || !Settings.Speak) return;
-            voiceQueue.Enqueue((source, ElevenLabs.Speak(text, voiceId, stability, style)));
+            trace?.AddAsyncWork();
+            voiceQueue.Enqueue((source, ElevenLabs.Speak(text, voiceId, stability, style, trace), trace));
         }
 
         private void AddSubtitle(string speaker, string text)
@@ -394,8 +433,8 @@ namespace Armory
             while (true)
             {
                 if (voiceQueue.Count == 0) { yield return null; continue; }
-                var (source, pending) = voiceQueue.Dequeue();
-                var wait = WaitFor(pending);
+                var (source, pending, trace) = voiceQueue.Dequeue();
+                var wait = WaitFor(pending, trace);
                 while (wait.MoveNext()) yield return wait.Current;
                 if (lastClip != null)
                 {
@@ -408,21 +447,23 @@ namespace Armory
 
         private AudioClip lastClip;
 
-        private IEnumerator WaitFor(Awaitable<AudioClip> pending)
+        private IEnumerator WaitFor(Awaitable<AudioClip> pending, FabricationTrace trace)
         {
             lastClip = null;
             bool done = false;
-            Await(pending, () => done = true);
+            Await(pending, () => done = true, trace);
             float timeout = Time.time + 15f;
             while (!done && Time.time < timeout) yield return null;
         }
 
-        private async void Await(Awaitable<AudioClip> pending, System.Action onDone)
+        private async void Await(Awaitable<AudioClip> pending, System.Action onDone, FabricationTrace trace = null)
         {
             try { lastClip = await pending; }
             catch (System.Exception error) { Debug.LogWarning("Voice line failed: " + error.Message); }
-            finally { onDone(); }
+            finally { onDone(); trace?.Complete(); }
         }
+
+        private int CurrentWave() => WaveDirector.Instance != null ? WaveDirector.Instance.WaveIndex + 1 : 0;
 
         private void OnGUI()
         {

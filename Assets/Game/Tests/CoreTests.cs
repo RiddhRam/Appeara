@@ -151,6 +151,66 @@ namespace Armory.Tests
             Assert.IsTrue(Counter.TryParse("resist:homing", out var counter));
             Assert.AreEqual("resist:homing", counter.ToString());
         }
+
+        [Test]
+        public void WeaponPackageAlwaysHasOneDefenseAndOneTactic()
+        {
+            var weapon = WeaponSpecParser.Parse("{\"name\":\"Arc Lobber\",\"fireMode\":\"thrown\",\"payload\":\"electric\",\"modifiers\":[\"sticky\"]}");
+            var package = AdaptationRules.ForWeapon(weapon, null, null, null, 7);
+            Assert.AreEqual(CounterFamily.Defensive, CounterCatalog.Family(package.Defense.Kind));
+            Assert.AreEqual(CounterFamily.Tactical, CounterCatalog.Family(package.Tactic.Kind));
+            Assert.AreEqual(new Counter(CounterKind.Resist, "electric"), package.Defense);
+            Assert.AreEqual(new Counter(CounterKind.Intercept), package.Tactic);
+            Assert.AreEqual(7, package.WeaponRevision);
+        }
+
+        [Test]
+        public void WeaponPackageRejectsWrongFamiliesAndAbsentResistance()
+        {
+            var weapon = WeaponSpecParser.Parse("{\"name\":\"Boomstick\",\"payload\":\"explosive\",\"projectileSpeed\":50}");
+            var package = AdaptationRules.ForWeapon(weapon, "dodge", "armor", "We adapt.", 1);
+            Assert.AreEqual(new Counter(CounterKind.Resist, "explosive"), package.Defense);
+            Assert.AreEqual(new Counter(CounterKind.Spread), package.Tactic);
+
+            package = AdaptationRules.ForWeapon(weapon, "resist:cryo", "rush", null, 2);
+            Assert.AreEqual(new Counter(CounterKind.Resist, "explosive"), package.Defense);
+            Assert.AreEqual(new Counter(CounterKind.Rush), package.Tactic);
+        }
+
+        [Test]
+        public void ValidModelPackageIsPreserved()
+        {
+            var weapon = WeaponSpecParser.Parse("{\"name\":\"Plasma Seeker\",\"payload\":\"plasma\",\"modifiers\":[\"homing\"]}");
+            var package = AdaptationRules.ForWeapon(weapon, "resist:homing", "teleport", "Found you.", 3);
+            Assert.AreEqual(new Counter(CounterKind.Resist, "homing"), package.Defense);
+            Assert.AreEqual(new Counter(CounterKind.Teleport), package.Tactic);
+            Assert.AreEqual("Found you.", package.Taunt);
+        }
+
+        [Test]
+        public void AnalysisClockConsumesOnlyCombatTimeAndTriggersOnce()
+        {
+            var clock = new CounterAnalysisClock();
+            clock.Start(20f);
+            Assert.IsFalse(clock.Advance(12f, false));
+            Assert.AreEqual(20f, clock.Remaining);
+            Assert.IsFalse(clock.Advance(19f, true));
+            Assert.AreEqual(1f, clock.Remaining);
+            Assert.IsTrue(clock.Advance(1f, true));
+            Assert.IsFalse(clock.Advance(5f, true));
+            Assert.IsFalse(clock.Running);
+        }
+
+        [Test]
+        public void StartingAnalysisAgainResetsTheGracePeriod()
+        {
+            var clock = new CounterAnalysisClock();
+            clock.Start(20f);
+            clock.Advance(8f, true);
+            clock.Start(20f);
+            Assert.AreEqual(20f, clock.Remaining);
+            Assert.IsTrue(clock.Running);
+        }
     }
 
     public class WavPcmTests

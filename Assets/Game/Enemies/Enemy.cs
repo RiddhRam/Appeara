@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Armory.Core;
 using UnityEngine;
 
@@ -23,6 +24,14 @@ namespace Armory
 
         private Renderer[] renderers;
         private GameObject shieldBubble;
+        private GameObject defensiveShell;
+        private float baseMaxHealth;
+        private float baseSpeed;
+        private float baseShieldCapacity;
+        private bool counterArmor;
+        private bool counterShield;
+        private bool counterTeleport;
+        private string defenseSignature;
         private float flashUntil;
         /// <summary>Element debuffs (burning, chilled, stunned...) driving speed, damage taken and tint.</summary>
         public readonly StatusState Status = new StatusState();
@@ -46,16 +55,78 @@ namespace Armory
             Kind = kind;
             Target = target;
             renderers = GetComponentsInChildren<Renderer>();
+            baseMaxHealth = MaxHealth;
+            baseSpeed = Speed;
+            baseShieldCapacity = ShieldHealth;
             zigPhase = Random.value * 10f;
             if (kind == EnemyKind.Boss || ExternallyDriven) return;
+            RefreshCounterPackage();
+        }
+
+        /// <summary>Replaces reversible counter stats and visuals on an enemy that may already be alive.</summary>
+        public void RefreshCounterPackage()
+        {
+            if (Kind == EnemyKind.Boss || ExternallyDriven) return;
             var ms = Mothership.Instance;
-            if (ms != null && ms.Has(CounterKind.Armor)) { MaxHealth *= 1.5f; Health = MaxHealth; }
-            if (ms != null && ms.Has(CounterKind.Rush)) Speed *= 1.5f;
-            if (ms != null && ms.Has(CounterKind.Shield) && ShieldHealth <= 0f) ShieldHealth = MaxHealth * 0.4f;
-            if (ms != null && ms.Has(CounterKind.Teleport)) nextTeleport = Time.time + Random.Range(1.5f, 3f);
+            bool armor = ms != null && ms.Has(CounterKind.Armor);
+            bool shield = ms != null && ms.Has(CounterKind.Shield);
+            bool reflect = ms != null && ms.Has(CounterKind.Reflect);
+            bool teleport = ms != null && ms.Has(CounterKind.Teleport);
+
+            float oldMax = MaxHealth;
+            MaxHealth = armor ? baseMaxHealth * 1.5f : baseMaxHealth;
+            if (armor && !counterArmor) Health = Mathf.Min(MaxHealth, Health + (MaxHealth - oldMax));
+            else if (!armor) Health = Mathf.Min(Health, MaxHealth);
+            counterArmor = armor;
+
+            Speed = baseSpeed * (ms != null && ms.Has(CounterKind.Rush) ? 1.5f : 1f);
+
+            if (shield && !counterShield) ShieldHealth += MaxHealth * 0.4f;
+            else if (!shield && counterShield) ShieldHealth = Mathf.Min(ShieldHealth, baseShieldCapacity);
+            counterShield = shield;
             if (ShieldHealth > 0f) CreateShieldBubble();
-            if (ms != null && ms.Has(CounterKind.Reflect))
-                Mats.Shape(PrimitiveType.Sphere, transform, Vector3.up * (Radius + 0.2f), Vector3.one * (Radius * 2.6f), Mats.Glow(new Color(0.9f, 0.9f, 1f), 0.18f), name: "Reflective Sheen");
+            else if (shieldBubble != null) { Destroy(shieldBubble); shieldBubble = null; }
+
+            string nextDefenseSignature = reflect ? "reflect" : armor ? "armor" :
+                ms != null && ms.Resistances.Count > 0 ? "resist:" + ms.Resistances.First() : "none";
+            if (nextDefenseSignature != defenseSignature)
+            {
+                if (defensiveShell != null) Destroy(defensiveShell);
+                defensiveShell = CreateDefenseShell(ms, armor, reflect);
+                defenseSignature = nextDefenseSignature;
+            }
+            if (teleport && !counterTeleport) nextTeleport = Time.time + Random.Range(1.5f, 3f);
+            counterTeleport = teleport;
+            SetTint(RestingColor(ms));
+        }
+
+        private GameObject CreateDefenseShell(Mothership ms, bool armor, bool reflect)
+        {
+            if (reflect)
+                return Mats.Shape(PrimitiveType.Sphere, transform, Vector3.up * (Radius + 0.2f), Vector3.one * (Radius * 2.6f),
+                    Mats.Glow(new Color(0.9f, 0.9f, 1f), 0.18f), name: "Reflective Sheen");
+            if (armor)
+                return Mats.Shape(PrimitiveType.Cube, transform, Vector3.up * (Radius + 0.2f), Vector3.one * (Radius * 2.2f),
+                    Mats.Glow(new Color(0.7f, 0.08f, 0.12f), 0.12f), name: "Counter Armor");
+            if (ms != null && ms.Resistances.Count > 0)
+                return Mats.Shape(PrimitiveType.Sphere, transform, Vector3.up * (Radius + 0.2f), Vector3.one * (Radius * 2.45f),
+                    Mats.Glow(ResistanceColor(ms.Resistances.First()), 0.14f), name: "Resistance Field");
+            return null;
+        }
+
+        private Color RestingColor(Mothership ms) =>
+            ms != null && ms.Resistances.Count > 0 ? Color.Lerp(BaseColor, ResistanceColor(ms.Resistances.First()), 0.45f) : BaseColor;
+
+        private static Color ResistanceColor(string trait)
+        {
+            switch (trait)
+            {
+                case "cryo": return new Color(0.25f, 0.9f, 1f);
+                case "electric": return new Color(1f, 0.9f, 0.15f);
+                case "plasma": return new Color(0.85f, 0.2f, 1f);
+                case "explosive": return new Color(1f, 0.25f, 0.05f);
+                default: return new Color(0.9f, 0.1f, 0.18f);
+            }
         }
 
         private void CreateShieldBubble()
@@ -116,7 +187,7 @@ namespace Armory
             }
             // Tint shows the active debuff (orange burning, blue chilled, yellow stunned) once the hit flash ends.
             if (flashUntil > 0f && Time.time > flashUntil) flashUntil = 0f;
-            if (flashUntil <= 0f) SetTint(Status.Tint(Time.time) ?? BaseColor);
+            if (flashUntil <= 0f) SetTint(Status.Tint(Time.time) ?? RestingColor(ms));
         }
 
         private Vector3 SeparationFrom(List<Enemy> others)
@@ -171,7 +242,8 @@ namespace Armory
             var ms = Mothership.Instance;
             bool shield = ShieldUp;
             float multiplier = Avatar != null || ExternallyDriven ? 1f : DamageTable.Multiplier(Kind, weapon, shield, ms != null ? ms.Resistances : null);
-            if (!ExternallyDriven && ms != null && ms.Has(CounterKind.Reflect) && (weapon.FireMode == FireMode.Beam || weapon.Payload == Payload.Plasma)) multiplier *= 0.25f;
+            if (!ExternallyDriven && ms != null && ms.Has(CounterKind.Reflect) && (weapon.FireMode == FireMode.Beam || weapon.Payload == Payload.Plasma))
+                multiplier = Mathf.Max(DamageTable.MinMultiplier, multiplier * 0.25f);
             float amount = Avatar != null
                 ? Avatar.ResolveDamage(weapon, baseDamage, hitPoint)
                 : baseDamage * multiplier * Status.DamageTakenMultiplier(Time.time);

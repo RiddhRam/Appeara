@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Text;
 using Armory.Core;
 using TMPro;
@@ -209,7 +208,14 @@ namespace Armory
                 string mods = spec.Mods == Mods.None ? "" : " · " + spec.Mods.ToString().Replace(", ", " · ");
                 weaponTraits.text = $"{spec.FireMode} · {spec.Payload}{mods}";
             }
-            adaptations.text = ms == null || ms.History.Count == 0 ? "<color=#5A6678>none detected</color>" : string.Join("  ", ms.History.Select(c => c.ToString()));
+            if (ms != null && ms.HasPendingAnalysis)
+            {
+                string waiting = ms.WaitingForModel ? " · uplink" : "";
+                adaptations.text = $"<color=#FF4D5A>hive analyzing {ms.PendingWeaponName} · {Mathf.CeilToInt(ms.AnalysisRemaining)}s{waiting}</color>";
+            }
+            else adaptations.text = ms == null || ms.ActivePackage == null
+                ? "<color=#5A6678>none detected</color>"
+                : ms.ActivePackage.ToString();
             hint.text = Rig.IsXR
                 ? "grip talk · trigger fire · stick move · click sprint · pads warp"
                 : "WASD move · shift sprint · V talk · T type · 1-5 presets · M menu";

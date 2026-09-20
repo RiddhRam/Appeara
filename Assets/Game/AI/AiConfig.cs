@@ -29,10 +29,17 @@ namespace Armory.AI
         public string ImageModel = "gpt-image-2";
         public string ImageQuality = "low";
         public bool Speak = true;
+        [Tooltip("Optional armory gateway base URL, e.g. https://armory.example.com. When present, provider keys stay on the gateway.")]
+        public string GatewayUrl = "";
+        [Tooltip("Optional shared demo token for the gateway. This is not a provider key; leave empty only on a private LAN.")]
+        public string GatewayToken = "";
         [Tooltip("Force a microphone whose name contains this text; empty = auto (headset first, then any working device).")]
         public string MicDeviceContains = "";
         public float WeaponTimeoutSeconds = 10f;
         public float MothershipTimeoutSeconds = 8f;
+
+        public bool UsesGateway => !string.IsNullOrWhiteSpace(GatewayUrl);
+        public string GatewayBaseUrl => GatewayUrl?.TrimEnd('/');
     }
 
     /// <summary>Loads API keys from UserSettings/ArmoryKeys.json (gitignored). Never logged.</summary>
@@ -41,9 +48,14 @@ namespace Armory.AI
     {
         public string openai;
         public string elevenlabs;
+        // DSNs identify a telemetry project, not a secret. Keeping this in UserSettings still lets each demo team
+        // point at its own project without baking configuration into a build.
+        public string sentry;
+        public string sentryEnvironment = "demo";
 
         public bool HasOpenAI => !string.IsNullOrEmpty(openai) && !openai.StartsWith("PASTE_");
         public bool HasElevenLabs => !string.IsNullOrEmpty(elevenlabs) && !elevenlabs.StartsWith("PASTE_");
+        public bool HasSentry => !string.IsNullOrEmpty(sentry) && !sentry.StartsWith("PASTE_");
 
         public static ArmoryKeys Load()
         {
@@ -60,6 +72,8 @@ namespace Armory.AI
                     var keys = JsonUtility.FromJson<ArmoryKeys>(File.ReadAllText(path));
                     keys.openai = keys.openai?.Trim();
                     keys.elevenlabs = keys.elevenlabs?.Trim();
+                    keys.sentry = keys.sentry?.Trim();
+                    keys.sentryEnvironment = string.IsNullOrWhiteSpace(keys.sentryEnvironment) ? "demo" : keys.sentryEnvironment.Trim();
                     return keys;
                 }
                 catch (Exception error)
@@ -87,10 +101,18 @@ namespace Armory.AI
 
     public static class Http
     {
-        public static async Awaitable<HttpResult> Send(UnityWebRequest request, float timeoutSeconds)
+        public static async Awaitable<HttpResult> Send(UnityWebRequest request, float timeoutSeconds, Sentry.ISpan span = null, bool propagateTrace = false)
         {
             using (request)
             {
+                // Only the gateway receives tracing headers. Sending them to model providers would not continue the
+                // trace and would unnecessarily disclose deployment metadata to third parties.
+                if (propagateTrace && span != null)
+                {
+                    request.SetRequestHeader("sentry-trace", span.GetTraceHeader().ToString());
+                    var baggage = Sentry.Unity.SentrySdk.GetBaggage();
+                    if (baggage != null) request.SetRequestHeader("baggage", baggage.ToString());
+                }
                 request.timeout = Mathf.CeilToInt(timeoutSeconds);
                 var operation = request.SendWebRequest();
                 while (!operation.isDone) await Awaitable.NextFrameAsync();
