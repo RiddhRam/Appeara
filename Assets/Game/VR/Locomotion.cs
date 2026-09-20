@@ -148,7 +148,7 @@ namespace Armory
             forward.y = 0f;
             if (forward.sqrMagnitude < 0.001f) forward = Vector3.forward;
             forward.Normalize();
-            Vector3 right = Vector3.Cross(Vector3.up, forward) * -1f;
+            Vector3 right = Vector3.Cross(Vector3.up, forward);
 
             float speed = WalkSpeed * (Sprinting ? SprintMultiplier : 1f);
             Vector3 step = (forward * input.y + right * input.x) * (speed * Time.deltaTime);
