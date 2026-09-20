@@ -54,6 +54,7 @@ namespace Armory.Editor
                 else if (command == "play") { EditorApplication.isPlaying = true; Write("playing"); }
                 else if (command == "stop") { EditorApplication.isPlaying = false; Write("stopped"); }
                 else if (command == "shot") Shot();
+                else if (command == "bossshot") BossShot();
                 else if (command == "dump") Dump();
                 else if (command.StartsWith("fab ")) { _ = ShipAI.Instance.Fabricate(command.Substring(4)); Write("fabricating"); }
                 else if (command == "autofire") { ShipAI.Instance.DebugAutoFire = !ShipAI.Instance.DebugAutoFire; Write("autofire " + ShipAI.Instance.DebugAutoFire); }
@@ -137,6 +138,44 @@ namespace Armory.Editor
         }
 
         private static void Write(string text) => File.WriteAllText(ResultPath, text);
+
+        /// <summary>Frames the Hive Avatar from three quarters and saves the render, for checking its shape.</summary>
+        private static void BossShot()
+        {
+            var avatar = UnityEngine.Object.FindAnyObjectByType<HiveAvatar>();
+            if (avatar == null) { Write("no hive avatar in scene"); return; }
+            var renderers = avatar.GetComponentsInChildren<Renderer>();
+            if (renderers.Length == 0) { Write("avatar has no renderers"); return; }
+            var bounds = renderers[0].bounds;
+            foreach (var r in renderers) bounds.Encapsulate(r.bounds);
+
+            var go = new GameObject("Boss Cam");
+            var camera = go.AddComponent<Camera>();
+            camera.farClipPlane = 600f;
+            float distance = Mathf.Max(bounds.size.x, bounds.size.z) * 1.5f + 10f;
+            go.transform.position = bounds.center + new Vector3(distance * 0.7f, bounds.size.y * 0.45f, distance * 0.7f);
+            go.transform.LookAt(bounds.center);
+            Render(camera);
+            UnityEngine.Object.DestroyImmediate(go);
+            Write($"boss shot: centre {bounds.center} size {bounds.size} renderers {renderers.Length}");
+        }
+
+        private static void Render(Camera camera)
+        {
+            var target = new RenderTexture(1280, 720, 24);
+            var previous = camera.targetTexture;
+            camera.targetTexture = target;
+            camera.Render();
+            camera.targetTexture = previous;
+            RenderTexture.active = target;
+            var texture = new Texture2D(1280, 720, TextureFormat.RGB24, false);
+            texture.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0);
+            texture.Apply();
+            RenderTexture.active = null;
+            File.WriteAllBytes(ShotPath, texture.EncodeToPNG());
+            UnityEngine.Object.DestroyImmediate(texture);
+            target.Release();
+        }
 
         private static void Shot()
         {
