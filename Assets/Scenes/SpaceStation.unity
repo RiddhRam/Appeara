@@ -119,6 +119,21 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!115 &58604931
+MonoScript:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: 
+  serializedVersion: 7
+  m_DefaultReferences: {}
+  m_Icon: {fileID: 0}
+  m_Type: 0
+  m_ExecutionOrder: 0
+  m_ClassName: TeleportPad
+  m_Namespace: Armory
+  m_AssemblyName: Armory.Runtime
 --- !u!1001 &285445721
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -188,6 +203,7 @@ GameObject:
   - component: {fileID: 330585545}
   - component: {fileID: 330585544}
   - component: {fileID: 330585547}
+  - component: {fileID: 330585548}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -313,6 +329,18 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
+--- !u!114 &330585548
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2f2c864d2f4f4da4b6edbcdd2c1223cc, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -440,6 +468,50 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
+--- !u!1 &536913302
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 536913303}
+  - component: {fileID: 536913304}
+  m_Layer: 0
+  m_Name: Teleport Pad 1
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &536913303
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 536913302}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.0000009616506, y: 0, z: -11}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2073674594}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &536913304
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 536913302}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 58604931}
+  m_Name: 
+  m_EditorClassIdentifier: Armory.Runtime::Armory.TeleportPad
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0
@@ -489,6 +561,94 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1151433753
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1151433754}
+  - component: {fileID: 1151433755}
+  m_Layer: 0
+  m_Name: Teleport Pad 4
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1151433754
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1151433753}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 10.999999, y: 0, z: 0.0000019669533}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2073674594}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1151433755
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1151433753}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 58604931}
+  m_Name: 
+  m_EditorClassIdentifier: Armory.Runtime::Armory.TeleportPad
+--- !u!1 &1251419691
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1251419692}
+  - component: {fileID: 1251419693}
+  m_Layer: 0
+  m_Name: Teleport Pad 3
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1251419692
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1251419691}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.0000019233012, y: 0, z: 11}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2073674594}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1251419693
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1251419691}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 58604931}
+  m_Name: 
+  m_EditorClassIdentifier: Armory.Runtime::Armory.TeleportPad
 --- !u!1001 &1261637163
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -501,10 +661,6 @@ PrefabInstance:
       propertyPath: m_Name
       value: Alien Animal_Fbx_7.4
       objectReference: {fileID: 0}
-    - target: {fileID: 9500000, guid: 1495bacdec54a2f439c904aa72cbc8d6, type: 3}
-      propertyPath: m_Controller
-      value:
-      objectReference: {fileID: 9100000, guid: ba2fdf553351c874a8f78f223dea74bd, type: 2}
     - target: {fileID: 400002, guid: 1495bacdec54a2f439c904aa72cbc8d6, type: 3}
       propertyPath: m_LocalPosition.x
       value: 32.539543
@@ -545,11 +701,131 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 9500000, guid: 1495bacdec54a2f439c904aa72cbc8d6, type: 3}
+      propertyPath: m_Controller
+      value: 
+      objectReference: {fileID: 9100000, guid: ba2fdf553351c874a8f78f223dea74bd, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 1495bacdec54a2f439c904aa72cbc8d6, type: 3}
+--- !u!1 &1863208410
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1863208411}
+  - component: {fileID: 1863208412}
+  m_Layer: 0
+  m_Name: Teleport Pad 2
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1863208411
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1863208410}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -10.999999, y: 0, z: 0.0000006556511}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2073674594}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1863208412
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1863208410}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 58604931}
+  m_Name: 
+  m_EditorClassIdentifier: Armory.Runtime::Armory.TeleportPad
+--- !u!1 &2073674592
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2073674594}
+  - component: {fileID: 2073674593}
+  m_Layer: 0
+  m_Name: Armory
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2073674593
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2073674592}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 464f4a34788029f4f8931156126a55cb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Armory.Runtime::Armory.ArmoryGame
+  Ai:
+    Offline: 0
+    WeaponModel: gpt-5.4-mini
+    MothershipModel: gpt-5.4-mini
+    ReasoningEffort: none
+    TranscribeModel: gpt-4o-mini-transcribe
+    TtsModel: eleven_flash_v2_5
+    ShipVoiceId: Xb7hH8MSUJpSbSDYk0k2
+    MothershipVoiceId: N2lVS1w4EtoT3dr4eOWO
+    MothershipPitch: 0.82
+    GenerateWeaponSfx: 1
+    GenerateBlueprints: 1
+    GenerateWeaponMesh: 1
+    GenerateWeaponArt: 0
+    ImageModel: gpt-image-2
+    ImageQuality: low
+    Speak: 1
+    WeaponTimeoutSeconds: 10
+    MothershipTimeoutSeconds: 8
+  BuildFloor: 0
+  FloorRadius: 45
+  PadRadius: 11
+  CoreReachRadius: 8
+  BuildCoreVisual: 0
+--- !u!4 &2073674594
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2073674592}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 15.93314, y: 0, z: 18.69289}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 536913303}
+  - {fileID: 1863208411}
+  - {fileID: 1251419692}
+  - {fileID: 1151433754}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -559,3 +835,4 @@ SceneRoots:
   - {fileID: 832575519}
   - {fileID: 285445721}
   - {fileID: 1261637163}
+  - {fileID: 2073674594}

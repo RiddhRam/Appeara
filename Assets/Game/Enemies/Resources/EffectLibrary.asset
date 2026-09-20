@@ -1,0 +1,53 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eb69d0ffd352cf64f86cb609defd8d4e, type: 3}
+  m_Name: EffectLibrary
+  m_EditorClassIdentifier: Armory.Runtime::Armory.EffectLibrary
+  Entries:
+  - Key: BossFireball
+    Prefab: {fileID: 8908150062728503137, guid: 5bb021626675a794eb9797ba2cac4258, type: 3}
+  - Key: BossLaserBeam
+    Prefab: {fileID: 5791090823728707059, guid: 9ef48f4ace42c9b46bd706d0e671cde9, type: 3}
+  - Key: BossLaserCharge
+    Prefab: {fileID: 1307976761026712388, guid: 8d8862df3fa7ad047a177ad95cee8c39, type: 3}
+  - Key: BossShockwave
+    Prefab: {fileID: 8226301557753148489, guid: ca3d9ed2aceed6f4a82d6946389a0942, type: 3}
+  - Key: CryoImpact
+    Prefab: {fileID: 8290518071353329509, guid: f2a182d36380601498e043f7428c5e2e, type: 3}
+  - Key: Death_Armored
+    Prefab: {fileID: 2768085852382141500, guid: a394d9b324d3b434a959762ea9cbdb9f, type: 3}
+  - Key: Death_Fast
+    Prefab: {fileID: 3855303088413602656, guid: 3893c2f8d3209134eb0ff1019400ac35, type: 3}
+  - Key: Death_Grunt
+    Prefab: {fileID: 3250024153128864327, guid: ec71152d895e8f449b1e93fb0b7a3628, type: 3}
+  - Key: Death_Shielded
+    Prefab: {fileID: 7866546968654839865, guid: 3875de0439b0e26409aceea5a974d4ff, type: 3}
+  - Key: Death_Swarm
+    Prefab: {fileID: 1288316895619785150, guid: 21e2a6c451300b2438249e97d9963d4f, type: 3}
+  - Key: ElectricImpact
+    Prefab: {fileID: 5268484583461681742, guid: 0c341ff40ff08c042802ed6268330d51, type: 3}
+  - Key: ExplosiveImpact
+    Prefab: {fileID: 9047808090549522058, guid: 605e5d66d8f765b47835f745d359528f, type: 3}
+  - Key: KineticImpact
+    Prefab: {fileID: 8586980718847985603, guid: 3d40927d3732ea14a8af3ca163697242, type: 3}
+  - Key: MuzzleFlash_Cryo
+    Prefab: {fileID: 1717870513369865659, guid: a2403562801367d48ab23fb33b5691b1, type: 3}
+  - Key: MuzzleFlash_Electric
+    Prefab: {fileID: 1316537766818441807, guid: 180ad57ef3a08a94d8baf47584d280bb, type: 3}
+  - Key: MuzzleFlash_Explosive
+    Prefab: {fileID: 9208783924430129657, guid: ba3498c0164b8e840a34dcbcf821dded, type: 3}
+  - Key: MuzzleFlash_Kinetic
+    Prefab: {fileID: 5568853452384197134, guid: abc78d446f1c37e4d9cf424dfa958491, type: 3}
+  - Key: MuzzleFlash_Plasma
+    Prefab: {fileID: 1651039594757043898, guid: 68b657199fcde53469c6cb6bab91940a, type: 3}
+  - Key: PlasmaImpact
+    Prefab: {fileID: 2127681811462273006, guid: 5fb231db584a57a47880c40c332a2a31, type: 3}

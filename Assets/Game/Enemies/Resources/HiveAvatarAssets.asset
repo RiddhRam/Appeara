@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5905980d2ac37b84ea40aafc6fcd8a11, type: 3}
+  m_Name: HiveAvatarAssets
+  m_EditorClassIdentifier: Armory.Runtime::Armory.HiveAvatarAssets
+  Model: {fileID: 100002, guid: 1495bacdec54a2f439c904aa72cbc8d6, type: 3}
+  Idle: {fileID: 7400016, guid: 1495bacdec54a2f439c904aa72cbc8d6, type: 3}
+  Walk: {fileID: 7400024, guid: 1495bacdec54a2f439c904aa72cbc8d6, type: 3}
+  Attack: {fileID: 7400006, guid: 1495bacdec54a2f439c904aa72cbc8d6, type: 3}
+  Spit: {fileID: 7400004, guid: 1495bacdec54a2f439c904aa72cbc8d6, type: 3}
+  Death: {fileID: 7400010, guid: 1495bacdec54a2f439c904aa72cbc8d6, type: 3}
+  Height: 14

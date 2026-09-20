@@ -1,0 +1,511 @@
+using System.Collections.Generic;
+using System.Collections;
+using System.Linq;
+using Armory.AI;
+using Armory.Core;
+using Unity.Profiling;
+using UnityEngine;
+
+namespace Armory
+{
+    /// <summary>Placeholder alien. Walks to the station core; behaviour and defences come from its kind + mothership counters.</summary>
+    public sealed class Enemy : MonoBehaviour
+    {
+        private static readonly ProfilerMarker DestroyMarker = new ProfilerMarker("Armory.Enemy.Destroy");
+        public static readonly List<Enemy> All = new List<Enemy>();
+
+        public EnemyKind Kind;
+        public float MaxHealth;
+        public float Health;
+        public float ShieldHealth;
+        public float Speed;
+        public float CoreDamage;
+        public float Radius = 0.6f;
+        public Vector3 Target;
+        public Color BaseColor;
+        public bool ExternallyDriven;
+        public HiveAvatar Avatar;
+        /// <summary>Set only for standard factory enemies; bosses and scripted threats retain their bespoke lifetime.</summary>
+        public bool Poolable { get; internal set; }
+        /// <summary>The authored model, when this kind has one; null means the primitive placeholder is on show.</summary>
+        public EnemyVisualBinder Visual;
+
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+        /// <summary>Matches the emission the placeholder shapes are built with, so a tint keeps their glow.</summary>
+        private const float PlaceholderEmission = 0.25f;
+        private static MaterialPropertyBlock tintBlock;
+        /// <summary>
+        /// Death effect keys by kind. Spelled out rather than built from the enum because "Death_" + Kind
+        /// allocates a string and boxes the enum on every kill, and a wave-two wipe is 45 of them at once.
+        /// The Boss is deliberately absent: its death sequence is the avatar's, and a burst at the aim point
+        /// would land in the middle of it.
+        /// </summary>
+        private static readonly string[] DeathEffectKeys =
+            { "Death_Grunt", "Death_Swarm", "Death_Armored", "Death_Fast", "Death_Shielded" };
+
+        private Renderer[] placeholderRenderers;
+        private Renderer[] modelRenderers;
+        private Color appliedTint;
+        private bool appliedResting;
+        private bool tintApplied;
+        private HealthBar healthBar;
+        private GameObject shieldBubble;
+        private GameObject defensiveShell;
+        private float baseMaxHealth;
+        private float baseSpeed;
+        private float baseShieldCapacity;
+        private bool counterArmor;
+        private bool counterShield;
+        private bool counterTeleport;
+        private string defenseSignature;
+        private float flashUntil;
+        /// <summary>Element debuffs (burning, chilled, stunned...) driving speed, damage taken and tint.</summary>
+        public readonly StatusState Status = new StatusState();
+        private float zigPhase;
+        private float nextDodgeCheck;
+        private float dodgeCooldown;
+        private Vector3 dodgeVelocity;
+        private float nextTeleport;
+        private float nextIntercept;
+        private Vector3 lateral;
+        public const float AttackWindupSeconds = 0.45f;
+        public const float AttackRecoverySeconds = 0.75f;
+        private readonly EnemyAttackRhythm attackRhythm = new EnemyAttackRhythm(AttackWindupSeconds, AttackRecoverySeconds);
+        private bool dying;
+        private Collider[] deathColliders;
+
+        public bool Alive => Health > 0f;
+        public bool ShieldUp => ShieldHealth > 0f;
+        public Vector3 Center => Avatar != null ? Avatar.AimPoint : ExternallyDriven ? transform.position : transform.position + Vector3.up * (Radius + 0.2f);
+
+        private void OnEnable() { All.Add(this); ArmoryPerformance.Record(PerformanceObjectKind.Enemy, true); }
+        private void OnDisable() { All.Remove(this); ArmoryPerformance.Record(PerformanceObjectKind.Enemy, false); }
+
+        public void Init(EnemyKind kind, Vector3 target)
+        {
+            Kind = kind;
+            Target = target;
+            if (Visual == null) Visual = GetComponent<EnemyVisualBinder>();
+            CollectTintTargets();
+            baseMaxHealth = MaxHealth;
+            baseSpeed = Speed;
+            baseShieldCapacity = ShieldHealth;
+            zigPhase = Random.value * 10f;
+            if (kind == EnemyKind.Boss || ExternallyDriven) return;
+            RefreshCounterPackage();
+        }
+
+        /// <summary>Clears transient combat state before this standard enemy is parked in the factory pool.</summary>
+        public void ResetForPool()
+        {
+            StopAllCoroutines();
+            if (deathColliders != null)
+                foreach (var collider in deathColliders)
+                    if (collider != null) collider.enabled = true;
+            deathColliders = null;
+            dying = false;
+            attackRhythm.Reset();
+            Health = 0f;
+            ShieldHealth = 0f;
+            Target = Vector3.zero;
+            Avatar = null;
+            ExternallyDriven = false;
+            Status.Clear();
+            flashUntil = 0f;
+            zigPhase = 0f;
+            nextDodgeCheck = dodgeCooldown = nextTeleport = nextIntercept = 0f;
+            dodgeVelocity = Vector3.zero;
+            lateral = Vector3.zero;
+            counterArmor = counterShield = counterTeleport = false;
+            defenseSignature = null;
+            // Drop the tint latch: the last occupant may have died mid-flash, and the guard in SetTint would
+            // otherwise decide the property block it left behind is already correct.
+            tintApplied = false;
+            if (healthBar != null) { healthBar.gameObject.SetActive(false); Destroy(healthBar.gameObject); healthBar = null; }
+            if (shieldBubble != null) { shieldBubble.SetActive(false); Destroy(shieldBubble); shieldBubble = null; }
+            if (defensiveShell != null) { defensiveShell.SetActive(false); Destroy(defensiveShell); defensiveShell = null; }
+        }
+
+        /// <summary>Replaces reversible counter stats and visuals on an enemy that may already be alive.</summary>
+        public void RefreshCounterPackage()
+        {
+            if (Kind == EnemyKind.Boss || ExternallyDriven) return;
+            var ms = Mothership.Instance;
+            bool armor = ms != null && ms.Has(CounterKind.Armor);
+            bool shield = ms != null && ms.Has(CounterKind.Shield);
+            bool reflect = ms != null && ms.Has(CounterKind.Reflect);
+            bool teleport = ms != null && ms.Has(CounterKind.Teleport);
+
+            float oldMax = MaxHealth;
+            MaxHealth = armor ? baseMaxHealth * 1.5f : baseMaxHealth;
+            if (armor && !counterArmor) Health = Mathf.Min(MaxHealth, Health + (MaxHealth - oldMax));
+            else if (!armor) Health = Mathf.Min(Health, MaxHealth);
+            counterArmor = armor;
+
+            Speed = baseSpeed * (ms != null && ms.Has(CounterKind.Rush) ? 1.5f : 1f);
+
+            if (shield && !counterShield) ShieldHealth += MaxHealth * 0.4f;
+            else if (!shield && counterShield) ShieldHealth = Mathf.Min(ShieldHealth, baseShieldCapacity);
+            counterShield = shield;
+            if (ShieldHealth > 0f) CreateShieldBubble();
+            else if (shieldBubble != null) { Destroy(shieldBubble); shieldBubble = null; }
+
+            string nextDefenseSignature = reflect ? "reflect" : armor ? "armor" :
+                ms != null && ms.Resistances.Count > 0 ? "resist:" + ms.Resistances.First() : "none";
+            if (nextDefenseSignature != defenseSignature)
+            {
+                if (defensiveShell != null) Destroy(defensiveShell);
+                defensiveShell = CreateDefenseShell(ms, armor, reflect);
+                defenseSignature = nextDefenseSignature;
+            }
+            if (teleport && !counterTeleport) nextTeleport = Time.time + Random.Range(1.5f, 3f);
+            counterTeleport = teleport;
+            SetTint(RestingColor(ms), resting: true);
+        }
+
+        private GameObject CreateDefenseShell(Mothership ms, bool armor, bool reflect)
+        {
+            if (reflect)
+                return Mats.Shape(PrimitiveType.Sphere, transform, Vector3.up * (Radius + 0.2f), Vector3.one * (Radius * 2.6f),
+                    Mats.Glow(new Color(0.9f, 0.9f, 1f), 0.18f), name: "Reflective Sheen");
+            if (armor)
+                return Mats.Shape(PrimitiveType.Cube, transform, Vector3.up * (Radius + 0.2f), Vector3.one * (Radius * 2.2f),
+                    Mats.Glow(new Color(0.7f, 0.08f, 0.12f), 0.12f), name: "Counter Armor");
+            if (ms != null && ms.Resistances.Count > 0)
+                return Mats.Shape(PrimitiveType.Sphere, transform, Vector3.up * (Radius + 0.2f), Vector3.one * (Radius * 2.45f),
+                    Mats.Glow(ResistanceColor(ms.Resistances.First()), 0.14f), name: "Resistance Field");
+            return null;
+        }
+
+        private Color RestingColor(Mothership ms) =>
+            ms != null && ms.Resistances.Count > 0 ? Color.Lerp(BaseColor, ResistanceColor(ms.Resistances.First()), 0.45f) : BaseColor;
+
+        private static Color ResistanceColor(string trait)
+        {
+            switch (trait)
+            {
+                case "cryo": return new Color(0.25f, 0.9f, 1f);
+                case "electric": return new Color(1f, 0.9f, 0.15f);
+                case "plasma": return new Color(0.85f, 0.2f, 1f);
+                case "explosive": return new Color(1f, 0.25f, 0.05f);
+                default: return new Color(0.9f, 0.1f, 0.18f);
+            }
+        }
+
+        private void CreateShieldBubble()
+        {
+            if (shieldBubble != null) return;
+            shieldBubble = Mats.Shape(PrimitiveType.Sphere, transform, Vector3.up * (Radius + 0.2f), Vector3.one * (Radius * 3.2f), Mats.Glow(new Color(0.3f, 0.6f, 1f), 0.3f), name: "Shield");
+        }
+
+        private void Update()
+        {
+            if (!Alive || ExternallyDriven) return;
+            float dt = Time.deltaTime;
+            var ms = Mothership.Instance;
+
+            float burn = Status.BurnDamage(Time.time, dt);
+            if (burn > 0f)
+            {
+                Health -= burn;
+                if (Health <= 0f) { Die(true); return; }
+            }
+
+            // Keep flashes and status colours advancing even while the enemy is stationary at the core.
+            if (flashUntil > 0f && Time.time > flashUntil) flashUntil = 0f;
+            if (flashUntil <= 0f)
+            {
+                var debuff = Status.Tint(Time.time);
+                SetTint(debuff ?? RestingColor(ms), resting: !debuff.HasValue);
+            }
+
+            Vector3 toTarget = Target - transform.position;
+            toTarget.y = 0f;
+            float distance = toTarget.magnitude;
+            float reach = StationCore.Instance != null ? StationCore.Instance.ReachRadius : 1.5f;
+            if (distance < reach + Radius)
+            {
+                if (Visual != null) Visual.SetMoving(false);
+                var beat = attackRhythm.Tick(dt, true, Status.SpeedMultiplier(Time.time) > 0.01f);
+                if (beat == EnemyAttackBeat.Started) Visual?.Attack();
+                else if (beat == EnemyAttackBeat.Hit) StationCore.Instance?.TakeDamage(CoreDamage);
+                return;
+            }
+            attackRhythm.Tick(0f, false, true);
+
+            Vector3 forward = toTarget / distance;
+            Vector3 side = Vector3.Cross(Vector3.up, forward);
+            float speed = Speed * Status.SpeedMultiplier(Time.time);
+            // These aliens walk at the core from spawn to death, so the walk cycle is on unless a stun stops them.
+            if (Visual != null) Visual.SetMoving(speed > 0.01f);
+            Vector3 velocity = forward * speed;
+            if (Kind == EnemyKind.Fast) velocity += side * (Mathf.Sin(Time.time * 3f + zigPhase) * speed * 0.8f);
+            if (Kind == EnemyKind.Swarm) velocity += side * (Mathf.Sin(Time.time * 5f + zigPhase) * 1.5f);
+            if (ms != null && ms.Has(CounterKind.Spread)) velocity += SeparationFrom(All) * 3f;
+
+            if (ms != null && ms.Has(CounterKind.Dodge)) UpdateDodge(side);
+            velocity += dodgeVelocity;
+            dodgeVelocity = Vector3.MoveTowards(dodgeVelocity, Vector3.zero, 20f * dt);
+
+            if (ms != null && ms.Has(CounterKind.Teleport) && Time.time > nextTeleport)
+            {
+                nextTeleport = Time.time + Random.Range(2.5f, 4f);
+                Vector3 jump = forward * Mathf.Min(4f, distance - 3f) + side * Random.Range(-3f, 3f);
+                Effects.Flash(Center, BaseColor, 1.2f);
+                transform.position += jump;
+                Effects.Flash(Center, BaseColor, 1.2f);
+            }
+
+            if (ms != null && ms.Has(CounterKind.Intercept) && Time.time > nextIntercept) TryIntercept();
+
+            transform.position += velocity * dt;
+            if (velocity.sqrMagnitude > 0.01f)
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(new Vector3(velocity.x, 0f, velocity.z)), 8f * dt);
+
+        }
+
+        private Vector3 SeparationFrom(List<Enemy> others)
+        {
+            Vector3 push = Vector3.zero;
+            foreach (var other in others)
+            {
+                if (other == this) continue;
+                Vector3 away = transform.position - other.transform.position;
+                away.y = 0f;
+                float d = away.magnitude;
+                if (d > 0.01f && d < 4f) push += away / d * (1f - d / 4f);
+            }
+            return push;
+        }
+
+        private void UpdateDodge(Vector3 side)
+        {
+            if (Time.time < nextDodgeCheck || Time.time < dodgeCooldown) return;
+            nextDodgeCheck = Time.time + 0.1f;
+            foreach (var projectile in Projectile.All)
+            {
+                if (projectile.Weapon != null && projectile.Weapon.Has(Mods.Homing)) continue;
+                Vector3 toMe = Center - projectile.transform.position;
+                if (toMe.sqrMagnitude > 64f) continue;
+                if (Vector3.Dot(projectile.Velocity.normalized, toMe.normalized) < 0.9f) continue;
+                dodgeVelocity = side * (Random.value < 0.5f ? -9f : 9f);
+                dodgeCooldown = Time.time + 1.2f;
+                return;
+            }
+        }
+
+        private void TryIntercept()
+        {
+            nextIntercept = Time.time + 0.25f;
+            foreach (var projectile in Projectile.All)
+            {
+                if (projectile.Velocity.magnitude > 30f && !projectile.Stuck) continue;
+                if ((projectile.transform.position - Center).sqrMagnitude > 16f) continue;
+                if (Random.value > 0.5f) continue;
+                Effects.Lightning(Center, projectile.transform.position, new Color(1f, 0.3f, 0.3f));
+                WorldText.Popup(projectile.transform.position, "INTERCEPTED", new Color(1f, 0.4f, 0.4f), 0.04f);
+                projectile.Kill();
+                return;
+            }
+        }
+
+        /// <summary>All damage flows through here so matchups, adaptations and the combat log stay consistent.</summary>
+        public float TakeHit(ParsedWeapon weapon, float baseDamage, Vector3? hitPoint = null)
+        {
+            if (!Alive || weapon == null || baseDamage <= 0f || float.IsNaN(baseDamage) || float.IsInfinity(baseDamage)) return 0f;
+            var ms = Mothership.Instance;
+            bool shield = ShieldUp;
+            float multiplier = Avatar != null || ExternallyDriven ? 1f : DamageTable.Multiplier(Kind, weapon, shield, ms != null ? ms.Resistances : null);
+            if (!ExternallyDriven && ms != null && ms.Has(CounterKind.Reflect) && (weapon.FireMode == FireMode.Beam || weapon.Payload == Payload.Plasma))
+                multiplier = Mathf.Max(DamageTable.MinMultiplier, multiplier * 0.25f);
+            float amount = Avatar != null
+                ? Avatar.ResolveDamage(weapon, baseDamage, hitPoint)
+                : baseDamage * multiplier * Status.DamageTakenMultiplier(Time.time);
+            if (amount <= 0f) return 0f;
+
+            if (shield)
+            {
+                ShieldHealth -= amount;
+                if (ShieldHealth <= 0f)
+                {
+                    ShieldHealth = 0f;
+                    if (shieldBubble != null) Destroy(shieldBubble);
+                    WorldText.Popup(Center + Vector3.up, "SHIELD DOWN", new Color(0.4f, 0.7f, 1f), 0.06f);
+                    ProceduralSfx.PlayAt(ProceduralSfx.Zap, Center);
+                }
+            }
+            else Health -= amount;
+
+            ArmoryGame.Instance?.RecordDamage(weapon, amount);
+            ShowHealth();
+            if (!ExternallyDriven) Flash();
+            // Shove the body along the shot. Severity is relative to its own health, so a rifle round staggers a
+            // swarmer and barely moves a brute, which is the matchup reading as a physical fact rather than a
+            // damage number. Only the model moves; the collider stays put so aiming is unaffected.
+            if (Visual != null)
+                Visual.Hit(hitPoint.HasValue ? Center - hitPoint.Value : -transform.forward,
+                    amount / Mathf.Max(1f, MaxHealth) * 3f);
+            if (multiplier >= 1.4f) WorldText.Popup(Center + Vector3.up * 0.8f, "WEAK!", new Color(1f, 0.85f, 0.2f));
+            else if (multiplier <= 0.45f) WorldText.Popup(Center + Vector3.up * 0.8f, shield ? "SHIELDED" : "RESISTED", new Color(0.6f, 0.6f, 0.7f));
+
+            if (Health <= 0f) Die(true);
+            return amount;
+        }
+
+        /// <summary>Bars are created on first damage: a 45-strong swarm should not spawn 45 bars up front.</summary>
+        private void ShowHealth()
+        {
+            if (Kind == EnemyKind.Boss) return;
+            if (healthBar == null)
+                healthBar = HealthBar.Create(transform, Vector3.up * (Radius * 2f + 0.55f), Mathf.Max(0.8f, Radius * 2.2f), BaseColor, false);
+            healthBar.Set(Health / Mathf.Max(1f, MaxHealth));
+        }
+
+        public void ApplySlow(float factor, float seconds)
+        {
+            if (ExternallyDriven) return;
+            Status.ApplySlow(Time.time);
+        }
+
+        /// <summary>Applies the debuff that belongs to a payload (plasma burns, cryo chills, electric stuns).</summary>
+        public void ApplyStatus(Payload payload, float damage)
+        {
+            if (!Alive || ExternallyDriven) return;
+            Status.Apply(payload, damage, Time.time);
+        }
+
+        private void Flash()
+        {
+            if (flashUntil > Time.time + 0.2f) return;
+            SetTint(Color.white, resting: false);
+            flashUntil = Time.time + 0.06f;
+        }
+
+        /// <summary>
+        /// Splits the renderers once at spawn so the per-frame tint never walks the hierarchy. The shield bubble
+        /// and the reflective sheen are counter visuals with their own colour and are left out, as before.
+        /// </summary>
+        private void CollectTintTargets()
+        {
+            var all = GetComponentsInChildren<Renderer>();
+            var placeholders = new List<Renderer>(all.Length);
+            var model = new List<Renderer>();
+            Transform art = Visual != null ? Visual.Model : null;
+            foreach (var r in all)
+            {
+                if (r == null || r.name == "Reflective Sheen") continue;
+                if (art != null && r.transform.IsChildOf(art)) model.Add(r);
+                else placeholders.Add(r);
+            }
+            placeholderRenderers = placeholders.ToArray();
+            modelRenderers = model.ToArray();
+            tintApplied = false;
+        }
+
+        /// <summary>
+        /// Hit flash, status colour and resting colour all land here. It goes through a property block rather
+        /// than a new material because assigning sharedMaterial threw the authored monster material away - texture,
+        /// normal map and smoothness with it - and mutated that shared asset for every other alien of the kind.
+        /// The authored model has its own colours, so at rest it gets no override at all and only wears a tint
+        /// while something is actually happening to it; the primitives still take the resting colour outright,
+        /// because a flat capsule is nothing but its tint.
+        /// </summary>
+        private void SetTint(Color color, bool resting)
+        {
+            if (tintApplied && appliedResting == resting && appliedTint == color) return;
+            tintApplied = true;
+            appliedTint = color;
+            appliedResting = resting;
+            if (tintBlock == null) tintBlock = new MaterialPropertyBlock();
+            if (placeholderRenderers != null)
+                foreach (var r in placeholderRenderers)
+                {
+                    if (r == null || r.gameObject == shieldBubble) continue;
+                    r.GetPropertyBlock(tintBlock);
+                    tintBlock.SetColor(BaseColorId, color);
+                    tintBlock.SetColor(EmissionColorId, color * PlaceholderEmission);
+                    r.SetPropertyBlock(tintBlock);
+                }
+            if (modelRenderers == null) return;
+            foreach (var r in modelRenderers)
+            {
+                if (r == null) continue;
+                if (resting)
+                {
+                    r.SetPropertyBlock(null);
+                    continue;
+                }
+                r.GetPropertyBlock(tintBlock);
+                tintBlock.SetColor(BaseColorId, color);
+                r.SetPropertyBlock(tintBlock);
+            }
+        }
+
+        /// <summary>The authored death burst for a kind, or null when that kind stages its own death.</summary>
+        public static string DeathEffectKey(EnemyKind kind)
+        {
+            int index = (int)kind;
+            return index >= 0 && index < DeathEffectKeys.Length ? DeathEffectKeys[index] : null;
+        }
+
+        public void Die(bool killed)
+        {
+            using var marker = DestroyMarker.Auto();
+            if (!enabled || dying) return;
+            dying = true;
+            Health = 0f;
+            if (Avatar != null) Avatar.Defeated(killed);
+            if (killed)
+            {
+                Effects.Burst(Center, BaseColor, Radius * 2f);
+                // The authored burst on top of the procedural one; pooled, and silent when the art is missing.
+                ArtVfx.Play(DeathEffectKey(Kind), Center, Mathf.Max(0.75f, Radius * 2f));
+                ProceduralSfx.PlayAt(ProceduralSfx.Hit, Center, 0.8f);
+            }
+            WaveDirector.Instance?.OnEnemyRemoved(this, killed);
+            All.Remove(this);
+            bool heavyCollapse = killed && Poolable && (Kind == EnemyKind.Armored || Kind == EnemyKind.Shielded);
+            float deathHold = Visual != null ? Visual.Die(heavyCollapse) : 0f;
+            bool delayPool = killed && Poolable && Kind != EnemyKind.Swarm &&
+                (heavyCollapse || (Kind == EnemyKind.Grunt && deathHold > 0f));
+            if (delayPool)
+            {
+                deathColliders = GetComponentsInChildren<Collider>(true)
+                    .Where(collider => collider != null && collider.enabled).ToArray();
+                foreach (var collider in deathColliders) collider.enabled = false;
+                StartCoroutine(ReturnAfterDeath(deathHold));
+                return;
+            }
+            // A pooled enemy keeps its authored model. Releasing it here would park a body whose model is gone
+            // and whose placeholder renderers are still hidden, so it would come back out of the pool invisible;
+            // re-instantiating a skinned mesh per spawn is also most of what the pool exists to avoid.
+            if (EnemyFactory.ReturnToPool(this)) return;
+            // Only an enemy that is actually going away releases the model, and it goes now rather than with the
+            // root, which the avatar holds open for its death animation.
+            if (Visual != null) Visual.Release();
+            enabled = false;
+            // The boss owns its own collapse: destroying it on a hardcoded 3.5s cut the 4.5s death clip off mid-fall.
+            Destroy(gameObject, Avatar != null && killed ? HiveAvatar.DeathSequenceSeconds : 0f);
+        }
+
+        private IEnumerator ReturnAfterDeath(float seconds)
+        {
+            yield return new WaitForSeconds(Mathf.Max(0.01f, seconds));
+            if (this != null && dying) EnemyFactory.ReturnToPool(this);
+        }
+
+        public static Enemy Nearest(Vector3 point, float maxDistance, Enemy exclude = null, ICollection<Enemy> excludeSet = null)
+        {
+            Enemy best = null;
+            float bestDistance = maxDistance * maxDistance;
+            foreach (var enemy in All)
+            {
+                if (enemy == exclude || !enemy.Alive || (excludeSet != null && excludeSet.Contains(enemy))) continue;
+                float d = (enemy.Center - point).sqrMagnitude;
+                if (d < bestDistance) { bestDistance = d; best = enemy; }
+            }
+            return best;
+        }
+    }
+}

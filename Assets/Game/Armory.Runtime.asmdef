@@ -1,0 +1,19 @@
+{
+    "name": "Armory.Runtime",
+    "rootNamespace": "Armory",
+    "references": [
+        "io.sentry.unity.runtime",
+        "Unity.InputSystem",
+        "Unity.XR.Management",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

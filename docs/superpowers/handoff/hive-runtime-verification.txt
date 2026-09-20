@@ -1,0 +1,18 @@
+RUNNING
+PASS Imported alien has visible boss scale
+PASS Active plating reduces matching damage
+PASS Switching plating releases old resistance
+PASS LEFT CLAW is a shootable target
+PASS LEFT CLAW breaks and disables its attack
+PASS RIGHT CLAW is a shootable target
+PASS RIGHT CLAW breaks and disables its attack
+PASS SPORE SAC is a shootable target
+PASS SPORE SAC breaks and disables its attack
+PASS CREST is a shootable target
+PASS CREST breaks and disables its attack
+PASS Spore pod can be shot down through normal weapon damage
+PASS Boss death releases wave tracking immediately
+PASS Death animation cannot block shots
+PASS No shootable threats survive the defeated encounter
+PASS Restart creates a fresh boss with intact organs and no stale plating
+COMPLETE

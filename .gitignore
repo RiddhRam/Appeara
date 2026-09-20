@@ -1,3 +1,5 @@
 Library/
 Temp/
 Logs/
+UserSettings/
+Services/armory-gateway/.env
