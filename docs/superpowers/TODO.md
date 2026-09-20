@@ -1,113 +1,38 @@
-# Alien Armory — working TODO (2026-09-20)
+# Alien Armory working TODO
 
-Branch `armory-vr`. Commits are local until someone runs `git push origin armory-vr`.
+Branch: `armory-vr`. Latest art pass: [Claude handoff](../../CLAUDE_HANDOFF.md).
 
-## Done
-- Core loop: speech → OpenAI WeaponSpec → assembled weapon → waves → mothership adaptation → adaptive boss.
-- ElevenLabs ARIA + mothership voices, per-weapon generated SFX, gpt-image blueprint holograms.
-- Station materials fixed (was all white), HUD redesign (IBM Plex + TextMesh Pro, glass panels, segmented gauges).
-- **Voice capture fix** (commit `3fd5fcf`): mic diagnostics, live input meter, per-attempt reason, device fallback,
-  `Armory → Mic Levels` probe. Transcription confirmed working in the headset.
+## Confirmed done
 
-## Recently done (this session)
-- **Hive Avatar boss committed** (`2e25415`): Codex's art prefab + encounter prototype, plus a targeting fix.
-  The bone-anchored organs sat inside the body collider, so 3 of 4 organs were unhittable; body is now a torso
-  capsule, organs are pushed clear (`HiveTargets`), and body hits near an organ route to it. Ray-based tests added.
-- **Untimed ARMORY phase** (`45c682f`): waves wait for "ready" / right A button; core repairs between waves.
-- **Locomotion** (`7a83663`): smooth stick movement, thruster sprint (left stick click / shift), stand-on
-  translocator pads linked across the arena, comfort vignette, arena bounds.
-- **Element status effects** (`9656e2c`): burning/melting, chilled/brittle, stunned, stagger, with enemy tints.
-- **Sketch board** (`789c535`): draw during armory; PNG goes to the model as vision input with the spoken request.
-- **Kestrel Drydock** (`aa5d755`): welcome screen + dev console (wave select, skip, restart, mic test, offline AI).
-  Opens on launch and on left Y / M; controller ray + trigger to press.
+- Voice/transcription/audio working per user; speech -> weapon loop and adaptive waves.
+- Untimed pre-wave ARMORY phase, smooth locomotion/sprint, translocator pads.
+- Boss art integration, organ/body targeting fix and ray tests; original claw/spore/wreckage encounter.
+- Element status rules, health bars, player shield state, sword/bow archetypes, fabrication budget rules.
+- Drawing removed by user request; spectator and XR ownership fixes exist.
+- Five ordinary monster visual prefabs with textures/controllers and editable EnemyVisuals table.
+- Boss stomp/fireball/laser/enrage/death animation assets, sockets and event contract.
+- Elemental status/impact/muzzle/trail/death art and boss effect prefabs.
 
-## Asset orders out
-- **Elemental VFX for Codex**: [asset-order-elements.md](handoff/asset-order-elements.md) - status prefabs
-  (burning/chilled/stunned), impacts, muzzle flashes, trails, death effects. Status debuffs currently read only
-  as a colour tint; the hooks to attach prefabs already exist.
-- **Boss animation for Astra**: [hive-avatar-animation-brief.md](handoff/hive-avatar-animation-brief.md).
+## Claude's demo priorities
 
-## Blocked on animation (moved to the back, 2026-09-20)
-- **Boss attacks: stomp + shockwave, fireball, sweeping laser, enrage.** Codex did NOT animate these; only claw
-  sweeps, spore pods and wreckage exist, using imported clips. Scripting waits on Astra's clips and animation
-  events - brief: [hive-avatar-animation-brief.md](handoff/hive-avatar-animation-brief.md). Once the clips land,
-  the script side is: trigger -> wait for the named event -> spawn hazard -> re-enable movement.
+- [ ] Wire normal enemy prefabs into EnemyFactory; preserve textures during tint/status/hit flashes.
+- [ ] Wire boss events and new attack scheduling, collision and damage. Art is ready; attacks are not playable yet.
+- [ ] Extend death lifetime to cover 4.5-second clip; guard/clear attack triggers on death.
+- [ ] Wire VFX with lifetime cleanup/pooling; profile the 45-enemy wave in headset.
+- [ ] Finish fabrication friction: finite per-wave energy, previewed cost/remaining balance, budget trimming, refunds, free fallback. Reuse existing WeaponBudget rules.
+- [ ] Fabricable mobility upgrade competing with weapon budget; base sprint remains free.
+- [ ] Decide player-down/retry behavior. Shields exist; direct boss attacks currently still damage the core. Route new stomp/fireball/laser to the intended target explicitly.
+- [ ] Review open cargo deck/docking-platform finale with clear center, low cover, perimeter pads, safe laser sectors and off-center core. Existing station is preserved.
+- [ ] Verify collider/socket alignment after grounded clips; death finale and enrage; headset readability and stereo VFX.
+- [ ] Capture source/license information for supplied enemy downloads before external distribution.
 
-## Known nits
-- Claw labels read mirrored from the player's viewpoint ("RIGHT CLAW" appears on the player's left).
-- Station architecture frames the boss fight awkwardly (arena proposal still open).
-- Art prefab (`HiveAvatarVisual.prefab`) is still not what `EnemyFactory` instantiates; runtime builds its own
-  plates/organs. Integration remains.
+## Remaining product work
 
-## Next up (ordered)
-1. ~~**Armory phase timing**~~ done — remaining: multi-turn conversation during the phase — user feedback: waves arrive with no time to talk. Untimed pre-wave ARMORY state:
-   no spawns, ARIA briefs, multi-turn conversation, wave starts only on "ready"/A. (Task 3 of armory-v2 plan.)
-2. **Latency: speech → firing under 2 s** — stream transcription during the hold, stream the weapon spec and start
-   the fabrication animation early, parallel voice/SFX, local fallback if a call exceeds 2.5 s.
-3. **Spectator view** — third-person camera on the PC window with transcript, spec chips, blueprint and hive panel.
-   This is what judges watch; doubles as the demo video.
-4. **Melee weapons** — swing the controller: plasma/fire/cryo blades, damage by swing speed, haptics, deflect
-   incoming projectiles. Requested by user.
-5. **Locomotion** — smooth stick movement; teleport pads become stand-on translocators.
-6. **Elements + debuffs + budget** — fire/burning+weakened, cryo/chilled+brittle, electric/shocked, plasma/melting,
-   corrosive/etched; per-wave fabrication budget with re-costing, RPM/damage tuning within bounds.
-7. **Legible adaptation** — hive panel animating what it learned; enemies visibly wear their counters.
-8. **Sketch board** — draw during armory phase; sketch sent as vision input and seeds the blueprint.
-9. **Tutorial** — fabricator induction with schematic controller visuals, step-by-step, skippable.
-10. **Story frame** — shuttle approach to the derelict refinery, dock, corridor, atrium reveal (spec section 2).
-11. **Sentry observability** — gateway service holding keys + tracing/logs/AI monitoring/profiling/uptime.
-12. **Polish** — starfield skybox, alien models for enemies, muzzle flash/impact/dissolve, ambience bed, pooling,
-    pre-warmed demo cache.
-13. **Boss continuation for Claude** — see [CLAUDE_HANDOFF.md](../../CLAUDE_HANDOFF.md). Codex delivered a
-    standalone visual prefab + animation controller and preserved an earlier gameplay prototype. Integrate
-    the art prefab, fix left-claw collider occlusion, then continue the encounter scripting. Not final/polished.
+- Multi-turn ARMORY conversation and lower speech-to-firing latency.
+- Judge-facing spectator demo capture and readable adaptation feedback.
+- Tutorial/induction and story approach sequence.
+- Gateway/key handling and observability if required for the demo.
+- Cache prewarm, pooling, ambience and final headset performance pass.
+- Later boss ideas: shield choir, acid pools, weapon mimic. Do not expand these before the primary attacks play well.
 
-## Mobility as a fabricated item (user, 2026-09-20)
-Movement speed should be something you *spend* on, not a free stat:
-- A fabricable **mobility item** (thruster gauntlet / jet harness / grav-boots) that raises sprint speed, adds a
-  dash, or shortens pad charge time. It costs from the same per-wave fabrication budget as weapons, so taking
-  speed means giving up damage or rate of fire.
-- Say it out loud like any weapon: "give me thrusters", "something that makes me faster", "boots that dash".
-- Schema: add `kind: weapon | mobility` to the spec, with mobility fields (sprintBonus, dashDistance,
-  dashCooldown, padChargeScale) and its own budget costs.
-- Balance hook: mobility competes with firepower, and the hive's `rush` counter makes speed more valuable, so the
-  choice shifts by wave.
-- Base sprint stays free (left stick click) so the player is never stranded; the item makes it meaningfully faster.
-
-## Weapon primitives to consider (user, 2026-09-20)
-Feasibility notes against the current controller scheme (right trigger fire, left grip talk):
-- **Beam / laser** — already implemented (`fireMode: beam`), continuous while trigger held. Keep.
-- **Explosion / AoE** — implemented as `splash` + explosive payload; could be promoted to its own primitive with
-  a thrown/placed variant.
-- **Apply status effect + enemy tint** — planned in item 6; tint enemies by status (red burning, blue frozen,
-  yellow shocked) so the debuff is readable at a glance. Easy win, high legibility.
-- **Melee (swing)** — item 4; needs velocity-based swing detection, no new buttons.
-- **Bow / charged shot** — feasible: hold trigger to draw (haptic ramp), release to loose; pairs well with the
-  left hand as the bow hand (two-handed pose from both controller positions).
-
-## Open decisions
-- Boss body: teammates' 28 m alien as the Hive Avatar (assumed yes).
-- Which weapon runtime ships: this one or RiddhRam's `weapon-system` branch.
-- Whether to add the gateway service (needed for the Sentry story, also removes keys from builds).
-
-## New demo requests (2026-09-19, Codex continuation)
-- Audio output now works, confirmed by the user. Transcription also works.
-- **Fabrication must have a cost.** Give each wave a finite energy allowance. Price damage, RPM, projectile
-  count, area, and modifiers against the same budget. Show cost and remaining energy before confirming a build.
-  Replacing a weapon returns only part of its cost; repairs/upgrades are cheaper than a full replacement.
-  Keep a free basic rifle so the player cannot get stuck. Refill at the next ARMORY phase; award a small bonus
-  for destroying boss organs. Exact prices/refunds need playtesting. Build on item 6, not a second currency system.
-- **Boss stomp / ground attack.** Telegraph the impact, then send an expanding shockwave across the deck.
-  Provide a pad escape route; do not require jumping with the current controls.
-- **Boss fireballs.** Visible, dodgeable projectiles with a clear windup. Consider shooting them down and later
-  melee deflection; distinguish their color/trail from player shots.
-- **Boss laser.** Charge the mouth/crest, show the sweep path, then fire a sustained sweeping beam. Leave a safe
-  sector and recovery window. Tie the attack to a breakable organ so targeting changes the fight.
-- **Dedicated boss arena (proposal).** Move the finale to an open cargo deck or exterior docking platform.
-  Keep the center clear, place the boss at one end, use low cover and perimeter teleport pads, and put a small
-  core objective off-center. The current station hologram obstructs sightlines. Review arena layout with the
-  team before replacing their map; a separate runtime-built finale can preserve the station for normal waves.
-- **Player health (proposal).** There is currently no player HP/death. All danger reduces core integrity and
-  a core breach restarts the wave. Add player shields/HP for claws, stomp, fireballs and lasers; keep wreckage
-  and swarmers as core threats. Give hits a brief grace period and clear HUD/haptics, without shaking the VR
-  camera. Define player-death/retry behavior and balance before changing this rule.
+The earlier TODO's sketch-board, missing boss-prefab integration, missing locomotion and absent-player-health entries were stale. See the handoff for precise current behavior and remaining work.
