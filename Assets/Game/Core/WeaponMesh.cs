@@ -189,6 +189,103 @@ namespace Armory.Core
             if (muzzle.z < 0.05f) muzzle.z = Furthest(parts);
         }
 
+        public static void Bounds(List<MeshPart> parts, out Vector3 min, out Vector3 max)
+        {
+            min = Vector3.positiveInfinity;
+            max = Vector3.negativeInfinity;
+            foreach (var part in parts)
+            {
+                min = Vector3.Min(min, part.Position - part.Scale * 0.5f);
+                max = Vector3.Max(max, part.Position + part.Scale * 0.5f);
+            }
+        }
+
+        /// <summary>Where the hand closes: the centre of whatever hangs below the weapon's mass, else its middle.</summary>
+        private static float GripHeight(List<MeshPart> parts, float centreY)
+        {
+            float weighted = 0f, total = 0f;
+            foreach (var part in parts)
+            {
+                if (part.Position.y >= centreY) continue;
+                float volume = Mathf.Max(Volume(part), 1e-6f);
+                weighted += part.Position.y * volume;
+                total += volume;
+            }
+            return total > 0f ? weighted / total : centreY;
+        }
+
+        /// <summary>
+        /// Chooses the weapon's forward axis. A credible muzzle selects among the geometry's own principal axes;
+        /// otherwise the thinner end of the longest axis is treated as the barrel.
+        /// </summary>
+        private static Vector3 ForwardAxis(List<MeshPart> parts, Vector3 centre, Vector3 muzzle, Vector3 first, Vector3 second, Vector3 third)
+        {
+            Vector3 toMuzzle = muzzle - centre;
+            if (toMuzzle.magnitude > Reach(parts, centre) * 0.15f)
+            {
+                Vector3 direction = toMuzzle.normalized;
+                Vector3 best = first;
+                float bestAlignment = Mathf.Abs(Vector3.Dot(first, direction));
+                foreach (var axis in new[] { second, third })
+                {
+                    float alignment = Mathf.Abs(Vector3.Dot(axis, direction));
+                    if (alignment > bestAlignment) { bestAlignment = alignment; best = axis; }
+                }
+                if (Vector3.Dot(best, direction) < 0f) best = -best;
+                return Vector3.Angle(direction, best) <= MuzzleTrustDegrees ? direction : best;
+            }
+            return first * ForwardSign(parts, centre, first, second, muzzle);
+        }
+
+        /// <summary>Across the weapon, the grip is the axis with the most spread, and it hangs below the barrel.</summary>
+        private static Vector3 UpAxis(List<MeshPart> parts, Vector3 centre, Vector3 forward, Vector3 first, Vector3 second, Vector3 third)
+        {
+            Vector3 best = Vector3.zero;
+            float bestSpread = -1f;
+            foreach (var axis in new[] { first, second, third })
+            {
+                Vector3 across = Vector3.ProjectOnPlane(axis, forward);
+                if (across.sqrMagnitude < 1e-6f) continue;
+                across.Normalize();
+                float spread = Span(parts, centre, across);
+                if (spread > bestSpread) { bestSpread = spread; best = across; }
+            }
+            if (bestSpread < 0f)
+            {
+                best = Vector3.ProjectOnPlane(Vector3.up, forward);
+                if (best.sqrMagnitude < 1e-6f) best = Vector3.ProjectOnPlane(Vector3.right, forward);
+                best.Normalize();
+            }
+            return best * UpSign(parts, centre, best);
+        }
+
+        private static float Reach(List<MeshPart> parts, Vector3 centre)
+        {
+            float reach = 0f;
+            foreach (var part in parts)
+                reach = Mathf.Max(reach, (part.Position - centre).magnitude + part.Scale.magnitude * 0.5f);
+            return Mathf.Max(reach, 1e-4f);
+        }
+
+        private static float ForwardSign(List<MeshPart> parts, Vector3 centre, Vector3 lengthAxis, Vector3 upAxis, Vector3 muzzle)
+        {
+            float span = Span(parts, centre, lengthAxis);
+            float offset = Vector3.Dot(muzzle - centre, lengthAxis);
+            if (Mathf.Abs(offset) > span * 0.05f) return Mathf.Sign(offset);
+
+            Vector3 rightAxis = Vector3.Cross(upAxis, lengthAxis).normalized;
+            float front = 0f, back = 0f;
+            int frontCount = 0, backCount = 0;
+            foreach (var part in parts)
+            {
+                float section = Extent(part, upAxis) * Extent(part, rightAxis);
+                if (Vector3.Dot(part.Position - centre, lengthAxis) >= 0f) { front += section; frontCount++; }
+                else { back += section; backCount++; }
+            }
+            if (frontCount == 0 || backCount == 0) return 1f;
+            return front / frontCount <= back / backCount ? 1f : -1f;
+        }
+
         /// <summary>
         /// Applies the station's shared visual language after normalization: clean angles, readable pieces, a
         /// restrained amount of emission, and a three-colour palette derived from the requested weapon colour.
@@ -439,8 +536,6 @@ namespace Armory.Core
 
         private static float LargestDimension(MeshPart part) =>
             Mathf.Max(part.Scale.x, Mathf.Max(part.Scale.y, part.Scale.z));
-
-        private static float Volume(MeshPart part) => part.Scale.x * part.Scale.y * part.Scale.z;
 
         private static float SnapAngle(float degrees) => Mathf.Repeat(Mathf.Round(degrees / 15f) * 15f, 360f);
 

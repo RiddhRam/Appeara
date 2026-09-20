@@ -110,6 +110,7 @@
     <Compile Include="Assets/Game/UI/UiPointer.cs" />
     <Compile Include="Assets/Game/UI/ArmoryPrompt.cs" />
     <Compile Include="Assets/Game/UI/UiKit.cs" />
+    <Compile Include="Assets/Game/Enemies/EnemyPresence.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets/Game/Armory.Runtime.asmdef" />
@@ -1317,12 +1318,12 @@
       <HintPath>Library/ScriptAssemblies/Unity.TextMeshPro.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="UnityEngine.UI">
-      <HintPath>Library/ScriptAssemblies/UnityEngine.UI.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="UnityEditor.UI">
       <HintPath>Library/ScriptAssemblies/UnityEditor.UI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>Library/ScriptAssemblies/UnityEngine.UI.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>

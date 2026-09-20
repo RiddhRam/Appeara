@@ -53,14 +53,17 @@
     <Compile Include="Assets/Game/Tests/HiveBossAttackTests.cs" />
     <Compile Include="Assets/Game/Tests/HiveAvatarTests.cs" />
     <Compile Include="Assets/Game/Tests/HiveTargetsTests.cs" />
+    <Compile Include="Assets/Game/Tests/WeaponStructureTests.cs" />
     <Compile Include="Assets/Game/Tests/EnemyVisualBinderTests.cs" />
     <Compile Include="Assets/Game/Tests/CoreTests.cs" />
     <Compile Include="Assets/Game/Tests/HiveAttackArtTests.cs" />
+    <Compile Include="Assets/Game/Tests/EnemyPresenceTests.cs" />
     <Compile Include="Assets/Game/Tests/HiveAvatarRigTests.cs" />
     <Compile Include="Assets/Game/Tests/PlayerVitalsTests.cs" />
     <Compile Include="Assets/Game/Tests/WeaponBudgetTests.cs" />
     <Compile Include="Assets/Game/Tests/ArchetypeTests.cs" />
     <Compile Include="Assets/Game/Tests/MonsterArtTests.cs" />
+    <Compile Include="Assets/Game/Tests/WeaponOrientationTests.cs" />
     <Compile Include="Assets/Game/Tests/ElementalAssetTests.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -1163,12 +1166,12 @@
       <HintPath>Library/ScriptAssemblies/UnityEditor.TestRunner.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="UnityEngine.UI">
-      <HintPath>Library/ScriptAssemblies/UnityEngine.UI.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="UnityEditor.UI">
       <HintPath>Library/ScriptAssemblies/UnityEditor.UI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>Library/ScriptAssemblies/UnityEngine.UI.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>

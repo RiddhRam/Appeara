@@ -50,7 +50,10 @@ namespace Armory
         public static void ApplyGeneratedMesh(Weapon weapon, System.Collections.Generic.List<MeshPart> parts, Vector3 muzzle)
         {
             if (weapon == null || parts == null || parts.Count == 0) return;
-            WeaponMesh.Normalize(parts, ref muzzle, WeaponMesh.TargetLengthFor(weapon.Spec));
+            // Vision models frequently return an otherwise correct side-view weapon along X or Y. Fit rotates the
+            // reconstructed body into the game's +Z firing convention before category signatures add barrels in
+            // that same frame; Normalize alone left the body sideways with the signature floating beside it.
+            WeaponMesh.Fit(parts, ref muzzle, WeaponMesh.TargetLengthFor(weapon.Spec));
             WeaponMesh.ApplyArchetypeSignature(parts, weapon.Spec, ref muzzle);
             WeaponMesh.Polish(parts, weapon.Spec != null ? weapon.Spec.Color : Color.cyan);
             var old = weapon.transform.Find("Parts");
