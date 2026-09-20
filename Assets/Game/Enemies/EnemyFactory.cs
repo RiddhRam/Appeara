@@ -81,7 +81,12 @@ namespace Armory
             // has to see the model's renderers. The boss is skipped because HiveAvatar loads and fits its own
             // model; a second one would stand inside it. A recycled body still carries the model it was built
             // with, and Attach hands that one back rather than stacking another.
-            if (kind != EnemyKind.Boss) enemy.Visual = EnemyVisualBinder.Attach(go, kind);
+            if (kind != EnemyKind.Boss)
+            {
+                enemy.Visual = EnemyVisualBinder.Attach(go, kind);
+                // A recycled body kept its model, so nothing would replay the spawn-in without being told.
+                if (!isNew) enemy.Visual?.Respawned();
+            }
             enemy.Init(kind, target);
             if (kind == EnemyKind.Boss)
             {

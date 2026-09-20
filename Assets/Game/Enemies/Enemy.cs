@@ -322,6 +322,11 @@ namespace Armory
             ArmoryGame.Instance?.RecordDamage(weapon, amount);
             ShowHealth();
             if (!ExternallyDriven) Flash();
+            // Shove the body along the shot. Severity is relative to its own health, so a rifle round staggers a
+            // swarmer and barely moves a brute, which is the matchup reading as a physical fact rather than a
+            // damage number. Only the model moves; the collider stays put so aiming is unaffected.
+            if (Visual != null && hitPoint.HasValue)
+                Visual.Hit(Center - hitPoint.Value, amount / Mathf.Max(1f, MaxHealth) * 3f);
             if (multiplier >= 1.4f) WorldText.Popup(Center + Vector3.up * 0.8f, "WEAK!", new Color(1f, 0.85f, 0.2f));
             else if (multiplier <= 0.45f) WorldText.Popup(Center + Vector3.up * 0.8f, shield ? "SHIELDED" : "RESISTED", new Color(0.6f, 0.6f, 0.7f));
 

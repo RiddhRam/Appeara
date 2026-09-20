@@ -40,6 +40,18 @@ namespace Armory
         /// <summary>True when a walk animation is wired up and <see cref="SetMoving"/> will reach a controller.</summary>
         public bool Animated => animator != null && movingParameter != 0;
 
+        /// <summary>Hit reactions, spawn-in and idle motion; null when this kind has no model.</summary>
+        public EnemyPresence Presence { get; private set; }
+
+        /// <summary>A body out of the pool keeps its model, so the pop-in has to be restarted by hand.</summary>
+        public void Respawned() { if (Presence != null) Presence.Respawned(); }
+
+        /// <summary>Knocks the model back along the shot. Silent when this kind is a bare placeholder.</summary>
+        public void Hit(Vector3 fromDirection, float severity)
+        {
+            if (Presence != null) Presence.Hit(fromDirection, severity);
+        }
+
         /// <summary>
         /// Loaded once and kept: wave two spawns 45 aliens 0.18 seconds apart, and a Resources.Load per spawn
         /// would put a synchronous asset lookup inside the spawn loop.
@@ -146,10 +158,9 @@ namespace Armory
             Model = model;
             BindAnimator(instance, entry);
             Fit(model, transform, entry);
-            modelRestPosition = model.localPosition;
-            modelRestRotation = model.localRotation;
-            gaitPhase = Random.value * Mathf.PI * 2f;
-            modelPoseKnown = true;
+            // After Fit, so the pose it treats as home is the fitted one. Kinds with no walk cycle get the idle
+            // bob, because a hovering drone that never moves a pixel reads as a prop rather than a threat.
+            Presence = EnemyPresence.Attach(model, entry.Rescales ? entry.Height * 0.5f : 1f, !Animated);
             return true;
         }
 
@@ -231,6 +242,7 @@ namespace Armory
             animator = null;
             movingParameter = 0;
             Renderers = null;
+            Presence = null;
             if (Model == null) return;
             var model = Model.gameObject;
             Model = null;
