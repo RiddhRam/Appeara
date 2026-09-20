@@ -6,7 +6,7 @@ namespace Armory
     /// The docking deck the finale is fought on. The refinery interior the first four waves use is a corridor
     /// fight: it is tight, the core sits dead centre, and a fourteen-metre avatar with a sweeping laser has
     /// nowhere to stand and no room for the player to dodge. This is an open platform hanging in space instead -
-    /// clear middle, low cover you can break line of sight behind, pads on the perimeter, and the core pushed off
+    /// clear middle, low cover you can break line of sight behind, speed pads on the perimeter, and the core pushed off
     /// centre so the boss's approach lane is not straight through the thing you are defending.
     ///
     /// It is built far from the station rather than replacing it, so the refinery is preserved exactly as it is
@@ -115,16 +115,12 @@ namespace Armory
         {
             padRoot = new GameObject("Arena Pads").transform;
             padRoot.SetParent(transform, false);
-            var pads = new TeleportPad[4];
             for (int i = 0; i < 4; i++)
             {
                 var pad = new GameObject("Arena Pad " + (i + 1)).AddComponent<TeleportPad>();
                 pad.transform.SetParent(padRoot, false);
                 pad.transform.localPosition = Quaternion.Euler(0f, 45f + i * 90f, 0f) * Vector3.forward * PadRing;
-                pads[i] = pad;
             }
-            // Paired across the deck, so a pad is an escape from whatever is standing over you.
-            for (int i = 0; i < pads.Length; i++) pads[i].Linked = pads[(i + 2) % pads.Length];
         }
 
         /// <summary>Moves the run here: the player, the core they defend, and where the wave spawns from.</summary>
@@ -184,7 +180,7 @@ namespace Armory
                 game.Rig.TeleportTo(stationCentre + new Vector3(0f, 0f, -8f), stationCentre - (stationCentre + new Vector3(0f, 0f, -8f)));
         }
 
-        /// <summary>The refinery's own pads would otherwise still be the nearest thing to translocate to.</summary>
+        /// <summary>The refinery's pads sit under the station, nowhere near the deck the player is now standing on.</summary>
         private void SetStationPads(bool on)
         {
             var game = ArmoryGame.Instance;

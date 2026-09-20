@@ -88,6 +88,10 @@ namespace Armory
             if (root == null || entry == null || entry.Prefab == null) return null;
             var binder = root.GetComponent<EnemyVisualBinder>();
             if (binder == null) binder = root.AddComponent<EnemyVisualBinder>();
+            // A body out of the enemy pool still carries the model it was fitted with last time. Building a
+            // second one would stack two models in the same place and hide the first behind the placeholder
+            // sweep below, so the existing one is handed straight back.
+            else if (binder.Model != null) return binder;
             // Grabbed before the model arrives so the model's own renderers are never in the hide list.
             var placeholders = root.GetComponentsInChildren<Renderer>(true);
             if (!binder.Build(entry))
