@@ -1,3 +1,4 @@
+using Armory.AI;
 using Armory.Core;
 using UnityEngine;
 
@@ -6,7 +7,7 @@ namespace Armory
     /// <summary>Builds placeholder aliens. Swap visuals here when real models are ready; stats live here too.</summary>
     public static class EnemyFactory
     {
-        public static Enemy Spawn(EnemyKind kind, Vector3 position, Vector3 target)
+        public static Enemy Spawn(EnemyKind kind, Vector3 position, Vector3 target, MothershipSpawnTrace spawnTrace = null)
         {
             var go = new GameObject(kind.ToString());
             go.transform.position = position;
@@ -50,7 +51,17 @@ namespace Armory
             if (kind == EnemyKind.Boss)
             {
                 if (ArmoryGame.Instance != null) go.transform.SetParent(ArmoryGame.Instance.transform, true);
-                go.AddComponent<HiveAvatar>().Initialize(enemy, Resources.Load<HiveAvatarAssets>("HiveAvatarAssets"));
+                var initializeSpan = spawnTrace?.StartSpan("unity.avatar_initialize", "Load model and build boss targets");
+                try
+                {
+                    go.AddComponent<HiveAvatar>().Initialize(enemy, Resources.Load<HiveAvatarAssets>("HiveAvatarAssets"), spawnTrace);
+                    spawnTrace?.FinishSpan(initializeSpan);
+                }
+                catch (System.Exception error)
+                {
+                    spawnTrace?.FinishSpan(initializeSpan, error);
+                    throw;
+                }
             }
             return enemy;
         }

@@ -8,7 +8,7 @@ using UnityEngine;
 namespace Armory.AI
 {
     /// <summary>
-    /// Sentry instrumentation for the player-facing fabrication loop. We deliberately never send a transcript,
+    /// Sentry instrumentation for player-facing AI and gameplay loops. We deliberately never send a transcript,
     /// API key, raw audio, or prompt: the trace describes system behaviour, not player speech.
     /// </summary>
     public static class ArmoryTelemetry
@@ -70,6 +70,21 @@ namespace Armory.AI
                     { "revision", revision.ToString() }, { "wave", wave.ToString() }, { "traits", safeTraits }
                 });
             return new CounterAnalysisTrace(transaction, revision);
+        }
+
+        public static MothershipSpawnTrace StartMothershipSpawn(int wave, float spawnDistance, bool inheritedCounter)
+        {
+            var transaction = SentrySdk.StartTransaction("armory.mothership_spawn", "gameplay.boss_spawn");
+            transaction.SetTag("wave", wave.ToString());
+            transaction.SetTag("spawn.distance", spawnDistance.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+            transaction.SetTag("counter.inherited", inheritedCounter ? "true" : "false");
+            SentrySdk.AddBreadcrumb("Mothership Avatar spawn requested", "armory.mothership_spawn", "info",
+                new Dictionary<string, string>
+                {
+                    { "wave", wave.ToString() },
+                    { "spawn_distance", spawnDistance.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) }
+                });
+            return new MothershipSpawnTrace(transaction, wave);
         }
 
         /// <summary>A wave transaction gives the Unity profiler a gameplay-sized window, especially useful for swarms.</summary>
@@ -248,6 +263,88 @@ namespace Armory.AI
             if (finished) return;
             graceSpan?.Finish();
             transaction?.SetTag("counter.outcome", reason ?? "cancelled");
+            finished = true;
+            transaction?.Finish();
+        }
+    }
+
+    /// <summary>Tracks final-boss construction, presentation initialization, arrival and readiness.</summary>
+    public sealed class MothershipSpawnTrace : IArmoryTrace
+    {
+        private readonly ITransactionTracer transaction;
+        private readonly int wave;
+        private bool finished;
+
+        internal MothershipSpawnTrace(ITransactionTracer transaction, int wave)
+        {
+            this.transaction = transaction;
+            this.wave = wave;
+        }
+
+        public string TraceId => transaction?.GetTraceHeader().TraceId.ToString() ?? "disabled";
+        public ISpan StartSpan(string operation, string description = null) => transaction?.StartChild(operation, description ?? operation);
+
+        public void FinishSpan(ISpan span, Exception error = null)
+        {
+            if (span == null) return;
+            if (error == null) span.Finish(); else span.Finish(error);
+        }
+
+        public void RecordPresentation(bool modelLoaded, bool animationAssetsLoaded)
+        {
+            if (finished) return;
+            transaction?.SetTag("presentation.model", modelLoaded ? "prefab" : "fallback");
+            transaction?.SetTag("presentation.animations", animationAssetsLoaded ? "loaded" : "missing");
+        }
+
+        public void Ready(float arrivalSeconds, int targetCount, bool inheritedCounter)
+        {
+            if (finished) return;
+            transaction?.SetTag("spawn.outcome", "ready");
+            transaction?.SetTag("arrival.seconds", arrivalSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+            transaction?.SetTag("target.count", targetCount.ToString());
+            transaction?.SetTag("counter.inherited", inheritedCounter ? "true" : "false");
+            SentrySdk.Logger.LogInfo(log =>
+            {
+                log.SetAttribute("wave", wave);
+                log.SetAttribute("arrival.seconds", arrivalSeconds);
+                log.SetAttribute("target.count", targetCount);
+                log.SetAttribute("counter.inherited", inheritedCounter);
+                log.SetAttribute("armory.trace_id", TraceId);
+            }, "Mothership Avatar ready after {0} seconds", arrivalSeconds);
+            SentrySdk.AddBreadcrumb("Mothership Avatar ready", "armory.mothership_spawn", "info",
+                new Dictionary<string, string> { { "trace_id", TraceId }, { "wave", wave.ToString() } });
+            finished = true;
+            transaction?.Finish();
+        }
+
+        public void Cancel(string reason)
+        {
+            if (finished) return;
+            transaction?.SetTag("spawn.outcome", reason ?? "cancelled");
+            SentrySdk.Logger.LogWarning(log =>
+            {
+                log.SetAttribute("wave", wave);
+                log.SetAttribute("spawn.outcome", reason ?? "cancelled");
+                log.SetAttribute("armory.trace_id", TraceId);
+            }, "Mothership Avatar spawn ended early: {0}", reason ?? "cancelled");
+            finished = true;
+            transaction?.Finish();
+        }
+
+        public void Fail(string stage, Exception error)
+        {
+            if (finished) return;
+            transaction?.SetTag("spawn.outcome", "failed");
+            transaction?.SetTag("failure.stage", stage ?? "unknown");
+            if (error != null) SentrySdk.CaptureException(error);
+            SentrySdk.Logger.LogWarning(log =>
+            {
+                log.SetAttribute("wave", wave);
+                log.SetAttribute("failure.stage", stage ?? "unknown");
+                log.SetAttribute("exception.type", error?.GetType().Name ?? "unknown");
+                log.SetAttribute("armory.trace_id", TraceId);
+            }, "Mothership Avatar spawn failed during {0}", stage ?? "unknown");
             finished = true;
             transaction?.Finish();
         }

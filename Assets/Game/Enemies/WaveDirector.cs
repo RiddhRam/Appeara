@@ -148,7 +148,26 @@ namespace Armory
                     if (approach.sqrMagnitude < 1f) approach = Vector3.forward;
                     position = transform.position + approach.normalized * SpawnRadius;
                 }
-                var enemy = EnemyFactory.Spawn(group.Kind, position, transform.position);
+                MothershipSpawnTrace spawnTrace = null;
+                Sentry.ISpan factorySpan = null;
+                if (group.Kind == EnemyKind.Boss)
+                {
+                    spawnTrace = ArmoryTelemetry.StartMothershipSpawn(WaveIndex + 1,
+                        Vector3.Distance(position, transform.position), Mothership.Instance?.ActivePackage != null);
+                    factorySpan = spawnTrace.StartSpan("unity.enemy_factory", "Construct Mothership Avatar root");
+                }
+                Enemy enemy;
+                try
+                {
+                    enemy = EnemyFactory.Spawn(group.Kind, position, transform.position, spawnTrace);
+                    spawnTrace?.FinishSpan(factorySpan);
+                }
+                catch (Exception error)
+                {
+                    spawnTrace?.FinishSpan(factorySpan, error);
+                    spawnTrace?.Fail("enemy_factory", error);
+                    throw;
+                }
                 if (group.Kind == EnemyKind.Boss)
                 {
                     ShipAI.Instance?.SayMothership("Everything you fabricate, we will analyze and counter.", "THE MOTHERSHIP AVATAR");
