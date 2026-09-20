@@ -19,11 +19,8 @@ namespace Armory
         public ArmoryRig Rig;
 
         private Transform root;
-        private LineRenderer pointer;
         private TextMeshPro status;
         private readonly List<HudButton> buttons = new List<HudButton>();
-        private HudButton hovered;
-        private bool triggerHeld;
 
         private void Awake() => Instance = this;
 
@@ -36,7 +33,10 @@ namespace Armory
         private void Build()
         {
             root = new GameObject("Drydock").transform;
-            root.SetParent(transform, false);
+            var hud = FindAnyObjectByType<Hud>();
+            root.SetParent(hud != null && hud.Follow != null ? hud.Follow : transform, false);
+            root.localPosition = new Vector3(0f, -0.1f, -0.35f);
+            root.localRotation = Quaternion.identity;
 
             var card = new GameObject("Card").transform;
             card.SetParent(root, false);
@@ -101,8 +101,6 @@ namespace Armory
                 TextAlignmentOptions.Top, width: Width - Pad * 2f);
             status.text = "Point with the right controller · trigger to select · Y reopens";
 
-            pointer = Mats.Line(root, UiKit.Cyan, 0.006f);
-            pointer.enabled = false;
         }
 
         private void Deploy(int waveIndex)
@@ -121,21 +119,6 @@ namespace Armory
         public void Show(bool on)
         {
             root.gameObject.SetActive(on);
-            if (!on)
-            {
-                pointer.enabled = false;
-                if (hovered != null) hovered.SetHovered(false);
-                hovered = null;
-                return;
-            }
-            // Park it in front of the player at eye height.
-            var head = Rig.Head.transform;
-            Vector3 forward = head.forward;
-            forward.y = 0f;
-            if (forward.sqrMagnitude < 0.01f) forward = Vector3.forward;
-            forward.Normalize();
-            root.position = head.position + forward * 1.6f - Vector3.up * 0.15f;
-            root.rotation = Quaternion.LookRotation(root.position - head.position);
         }
 
         public void Toggle() => Show(!root.gameObject.activeSelf);

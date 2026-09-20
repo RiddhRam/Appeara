@@ -61,22 +61,6 @@ namespace Armory.Editor
                 else if (command == "skip") { WaveDirector.Instance.SkipWave(); Write("skipped"); }
                 else if (command == "boss") { WaveDirector.Instance.RestartWave(4, 1f); Write("starting Hive Avatar"); }
                 else if (command == "state") Write(GameState());
-                else if (command == "sketch")
-                {
-                    var board = SketchBoard.Instance;
-                    MissionDeck.Instance?.Show(false);
-                    board.Show(true);
-                    board.Clear();
-                    // Crude bow silhouette: curved limb plus a straight string.
-                    for (int i = 0; i < 24; i++)
-                    {
-                        float t0 = i / 24f, t1 = (i + 1) / 24f;
-                        board.Stroke(new Vector2(120f + Mathf.Sin(t0 * Mathf.PI) * 90f, 40f + t0 * 240f),
-                                     new Vector2(120f + Mathf.Sin(t1 * Mathf.PI) * 90f, 40f + t1 * 240f));
-                    }
-                    board.Stroke(new Vector2(120f, 40f), new Vector2(120f, 280f));
-                    Write("sketched, hasInk=" + board.HasInk + " bytes=" + (board.EncodeBase64()?.Length ?? 0));
-                }
                 else if (command == "miclevels") { ShipAI.Instance.ProbeMics(); Write("probing mics for ~2s per device; see console"); }
                 else if (command == "reset") { Mothership.Instance.Clear(); Projectile.SurfaceHits.Clear(); Projectile.EnemyHits = 0; WaveDirector.Instance.RestartWave(0, 1f); Write("reset"); }
                 else Write("unknown command: " + command);

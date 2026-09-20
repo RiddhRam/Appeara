@@ -56,6 +56,8 @@ namespace Armory
         private readonly List<XRInputSubsystem> inputs = new List<XRInputSubsystem>();
         private Transform trackingSpace;
         private bool xrReady;
+        private bool ownsLoader;
+        private bool startedSubsystems;
         private bool originConfigured;
         private bool rightTracked;
         private bool leftTracked;
@@ -136,6 +138,25 @@ namespace Armory
         private void OnDisable()
         {
             Application.onBeforeRender -= UpdatePoses;
+            StopXR();
+        }
+
+        /// <summary>
+        /// Leaves XR the way we found it. The editor crashed on exiting Play mode inside OpenXR's
+        /// Internal_DestroySession because the session was torn down twice: once by Unity's own shutdown and once
+        /// by the loader we started here. Stop only what this rig started, and let Unity own the rest.
+        /// </summary>
+        private void StopXR()
+        {
+            xrReady = false;
+            inputs.Clear();
+            var manager = XRGeneralSettings.Instance != null ? XRGeneralSettings.Instance.Manager : null;
+            if (manager == null || !startedSubsystems) return;
+            startedSubsystems = false;
+            manager.StopSubsystems();
+            if (!ownsLoader) return;
+            ownsLoader = false;
+            manager.DeinitializeLoader();
         }
 
         private void OnDestroy()
@@ -147,14 +168,20 @@ namespace Armory
         {
             yield return null;
             var manager = XRGeneralSettings.Instance != null ? XRGeneralSettings.Instance.Manager : null;
-            if (manager != null && manager.activeLoader == null) yield return manager.InitializeLoader();
+            if (manager != null && manager.activeLoader == null)
+            {
+                ownsLoader = true;
+                yield return manager.InitializeLoader();
+            }
             if (manager == null || manager.activeLoader == null)
             {
+                ownsLoader = false;
                 Status = "Desktop mode (no OpenXR). Start Quest Link for VR.";
                 yield break;
             }
             if (!manager.isInitializationComplete) yield return null;
             manager.StartSubsystems();
+            startedSubsystems = true;
             SubsystemManager.GetSubsystems(inputs);
             ConfigureOrigin();
             xrReady = true;
