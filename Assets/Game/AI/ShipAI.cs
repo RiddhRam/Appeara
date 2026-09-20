@@ -358,6 +358,7 @@ namespace Armory
         private async Awaitable LoadBlueprint(ParsedWeapon spec, FabricationTrace trace = null)
         {
             int request = ++blueprintRequest;
+            bool placeholderHidden = false;
             try
             {
                 wristBlueprint.SetPending(spec.Name);
@@ -374,6 +375,13 @@ namespace Armory
                     png = catalogPng;
                     texture = DecodeTexture(png);
                     source = "local " + archetype.Replace('_', ' ');
+                }
+                // A local/cached blueprint resolves synchronously. Hide the generic blockout for the few seconds
+                // needed by the mesh model, then reveal only the finished generated geometry.
+                if (texture != null && Settings.GenerateWeaponMesh && Current != null && Current.Spec == spec)
+                {
+                    WeaponAssembler.SetFabricating(Current, true);
+                    placeholderHidden = true;
                 }
                 if (texture == null)
                 {
@@ -401,11 +409,13 @@ namespace Armory
 
                 // The blueprint is the reference for the real geometry: GPT reads its own drawing and returns the
                 // weapon as primitives, which replaces the hologram in the player's hand.
-                await BuildMeshFromBlueprint(spec, png, request, trace);
+                bool meshBuilt = await BuildMeshFromBlueprint(spec, png, request, trace);
+                if (!meshBuilt) RestorePlaceholder(spec, request, placeholderHidden);
             }
             catch (System.Exception error)
             {
                 Debug.LogWarning("Blueprint generation failed: " + error.Message);
+                RestorePlaceholder(spec, request, placeholderHidden);
                 if (request == blueprintRequest)
                 {
                     var texture = BlueprintHologram.CreateFallbackTexture(spec.Name, spec.DesignPrompt, spec.Color);
@@ -414,6 +424,12 @@ namespace Armory
                 }
             }
             finally { trace?.Complete(); }
+        }
+
+        private void RestorePlaceholder(ParsedWeapon spec, int request, bool wasHidden)
+        {
+            if (wasHidden && request == blueprintRequest && Current != null && Current.Spec == spec)
+                WeaponAssembler.SetFabricating(Current, false);
         }
 
         private static Texture2D DecodeTexture(byte[] png)
@@ -426,17 +442,18 @@ namespace Armory
         }
 
         /// <summary>Second half of fabrication: turn the blueprint into primitives and build them in the hand.</summary>
-        private async Awaitable BuildMeshFromBlueprint(ParsedWeapon spec, byte[] blueprintPng, int request, FabricationTrace trace)
+        private async Awaitable<bool> BuildMeshFromBlueprint(ParsedWeapon spec, byte[] blueprintPng, int request, FabricationTrace trace)
         {
-            if (!Settings.GenerateWeaponMesh) return;
+            if (!Settings.GenerateWeaponMesh) return false;
             string traits = $"{spec.FireMode} · {spec.Payload} · {spec.Mods}";
             string json = await OpenAI.DescribeWeaponMesh(spec.Name, spec.DesignPrompt, spec.FireMode, spec.Payload, traits, blueprintPng, trace);
-            if (request != blueprintRequest || Current == null || Current.Spec != spec) return;
+            if (request != blueprintRequest || Current == null || Current.Spec != spec) return false;
             var parts = WeaponMesh.Parse(json, spec.Color, out var muzzle);
-            if (parts.Count == 0) { Debug.LogWarning("Weapon mesh: model returned no usable parts; keeping placeholder."); return; }
+            if (parts.Count == 0) { Debug.LogWarning("Weapon mesh: model returned no usable parts; keeping placeholder."); return false; }
             WeaponAssembler.ApplyGeneratedMesh(Current, parts, muzzle);
             Status = $"Built {parts.Count}-part model";
             ProceduralSfx.PlayAt(ProceduralSfx.Fabricate, Rig.Aim.position, 0.6f);
+            return true;
         }
 
         private static string Flavour(Payload payload)

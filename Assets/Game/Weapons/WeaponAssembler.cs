@@ -70,6 +70,35 @@ namespace Armory
             muzzleTransform.localPosition = muzzle;
             weapon.Muzzle = muzzleTransform;
             root.gameObject.AddComponent<PopIn>();
+            SetFabricating(weapon, false);
+        }
+
+        /// <summary>Used while a fast cached blueprint is being rebuilt so the generic blockout never flashes.</summary>
+        public static void SetPlaceholderVisible(Weapon weapon, bool visible)
+        {
+            if (weapon == null) return;
+            var parts = weapon.transform.Find("Parts");
+            if (parts != null) parts.gameObject.SetActive(visible);
+        }
+
+        /// <summary>Hide the blockout, disable firing, and leave a small cyan fabrication marker in the hand.</summary>
+        public static void SetFabricating(Weapon weapon, bool fabricating)
+        {
+            if (weapon == null) return;
+            weapon.SetFabricatingMesh(fabricating);
+            SetPlaceholderVisible(weapon, !fabricating);
+
+            var existing = weapon.transform.Find("Mesh Fabrication Orb");
+            if (!fabricating)
+            {
+                if (existing != null) Object.Destroy(existing.gameObject);
+                return;
+            }
+            if (existing != null) return;
+
+            var orb = Mats.Shape(PrimitiveType.Sphere, weapon.transform, new Vector3(0f, 0.015f, 0.08f),
+                Vector3.one * 0.085f, Mats.Glow(new Color(0.25f, 0.9f, 1f), 0.55f), name: "Mesh Fabrication Orb");
+            orb.AddComponent<PopIn>();
         }
 
         private static PrimitiveType ShapeOf(PartShape shape)

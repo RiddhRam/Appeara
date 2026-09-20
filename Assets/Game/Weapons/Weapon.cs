@@ -12,6 +12,7 @@ namespace Armory
         public Transform Muzzle;
         public AudioClip FireClip;
         public AudioClip ImpactClip;
+        public bool FabricatingMesh { get; private set; }
 
         private AudioSource source;
         /// <summary>0-1 while a bow is being drawn, for the HUD and the bow's own animation.</summary>
@@ -38,6 +39,9 @@ namespace Armory
 
         public void Tick(bool triggerHeld, Transform aim)
         {
+            // Cached blueprints hide the generic blockout while their final geometry is reconstructed. The weapon
+            // must not invisibly fire from the old placeholder muzzle during that short fabrication window.
+            if (FabricatingMesh) return;
             // A weapon without a spec would throw every frame and flood the editor; report it once instead.
             if (Spec == null)
             {
@@ -196,6 +200,14 @@ namespace Armory
                     if (Spec.Has(Mods.Chain)) Effects.Chain(Spec, point, enemy, Spec.ChainCount, Spec.Damage * 0.3f);
                 }
             }
+        }
+
+        public void SetFabricatingMesh(bool fabricating)
+        {
+            FabricatingMesh = fabricating;
+            if (!fabricating) return;
+            if (beam != null) beam.enabled = false;
+            if (source != null && source.isPlaying) source.Stop();
         }
     }
 }
