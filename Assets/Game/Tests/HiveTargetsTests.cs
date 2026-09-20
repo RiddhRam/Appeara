@@ -184,4 +184,47 @@ namespace Armory.Tests
             Assert.AreEqual(StatusState.BrittleDamage * StatusState.MeltDamage, status.DamageTakenMultiplier(1f), 0.001f);
         }
     }
+
+    public class WeaponMeshTests
+    {
+        private static string Json(float scale) =>
+            "{\"parts\":[" +
+            "{\"shape\":\"box\",\"x\":0,\"y\":0,\"z\":" + (0.5f * scale) + ",\"sx\":" + (0.1f * scale) + ",\"sy\":" + (0.1f * scale) + ",\"sz\":" + (1.0f * scale) + ",\"color\":\"#FF0000\",\"glow\":false}," +
+            "{\"shape\":\"cylinder\",\"x\":0,\"y\":0,\"z\":" + (1.2f * scale) + ",\"rx\":90,\"sx\":" + (0.05f * scale) + ",\"sy\":" + (0.6f * scale) + ",\"sz\":" + (0.05f * scale) + ",\"color\":\"#00FF00\",\"glow\":true}" +
+            "],\"muzzleX\":0,\"muzzleY\":0,\"muzzleZ\":" + (1.5f * scale) + "}";
+
+        [Test]
+        public void ParsesPartsAndMuzzle()
+        {
+            var parts = WeaponMesh.Parse(Json(1f), Color.white, out var muzzle);
+            Assert.AreEqual(2, parts.Count);
+            Assert.AreEqual(PartShape.Cylinder, parts[1].Shape);
+            Assert.IsTrue(parts[1].Glow);
+            Assert.Greater(muzzle.z, 0f);
+        }
+
+        [TestCase(1f)]
+        [TestCase(100f)]   // the model answered in centimetres
+        [TestCase(0.01f)]  // ...or in something far too small
+        public void NormalizeGivesTheSameWeaponSizeWhateverTheUnits(float scale)
+        {
+            var parts = WeaponMesh.Parse(Json(scale), Color.white, out var muzzle);
+            WeaponMesh.Normalize(parts, ref muzzle);
+            float longest = 0f;
+            foreach (var part in parts)
+                longest = Mathf.Max(longest, Mathf.Max(part.Scale.x, Mathf.Max(part.Scale.y, part.Scale.z)));
+            Assert.LessOrEqual(longest, WeaponMesh.TargetLength + 0.01f);
+            Assert.Greater(longest, 0.05f);
+            // Muzzle ends up in front of the hand, where shots should spawn.
+            Assert.Greater(muzzle.z, 0.05f);
+            Assert.Less(muzzle.z, 0.6f);
+        }
+
+        [Test]
+        public void BadJsonYieldsNoParts()
+        {
+            Assert.IsEmpty(WeaponMesh.Parse("not json", Color.white, out _));
+            Assert.IsEmpty(WeaponMesh.Parse("", Color.white, out _));
+        }
+    }
 }

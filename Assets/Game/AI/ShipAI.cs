@@ -297,11 +297,7 @@ namespace Armory
                 trace?.AddAsyncWork();
                 _ = LoadBlueprint(spec, trace);
             }
-            if (OpenAI != null && Settings.GenerateWeaponArt)
-            {
-                trace?.AddAsyncWork();
-                _ = LoadWeaponArt(Current, spec, trace);
-            }
+
         }
 
         /// <summary>Generated art becomes the held weapon once it lands; the modular parts cover the wait.</summary>
@@ -354,9 +350,27 @@ namespace Armory
                 wristBlueprint.Show(texture, spec.Name);
                 coreBlueprint.Show(texture, spec.Name);
                 ProceduralSfx.PlayAt(ProceduralSfx.Fabricate, coreBlueprint.transform.position, 0.8f);
+
+                // The blueprint is the reference for the real geometry: GPT reads its own drawing and returns the
+                // weapon as primitives, which replaces the hologram in the player's hand.
+                await BuildMeshFromBlueprint(spec, png, request, trace);
             }
             catch (System.Exception error) { Debug.LogWarning("Blueprint generation failed: " + error.Message); }
             finally { trace?.Complete(); }
+        }
+
+        /// <summary>Second half of fabrication: turn the blueprint into primitives and build them in the hand.</summary>
+        private async Awaitable BuildMeshFromBlueprint(ParsedWeapon spec, byte[] blueprintPng, int request, FabricationTrace trace)
+        {
+            if (!Settings.GenerateWeaponMesh) return;
+            string traits = $"{spec.FireMode} · {spec.Payload} · {spec.Mods}";
+            string json = await OpenAI.DescribeWeaponMesh(spec.Name, traits, blueprintPng, trace);
+            if (request != blueprintRequest || Current == null || Current.Spec != spec) return;
+            var parts = WeaponMesh.Parse(json, spec.Color, out var muzzle);
+            if (parts.Count == 0) { Debug.LogWarning("Weapon mesh: model returned no usable parts; keeping placeholder."); return; }
+            WeaponAssembler.ApplyGeneratedMesh(Current, parts, muzzle);
+            Status = $"Built {parts.Count}-part model";
+            ProceduralSfx.PlayAt(ProceduralSfx.Fabricate, Rig.Aim.position, 0.6f);
         }
 
         private static string Flavour(Payload payload)

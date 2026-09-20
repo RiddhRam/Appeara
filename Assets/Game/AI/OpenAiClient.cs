@@ -161,6 +161,37 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
             finally { trace?.FinishSpan(span); }
         }
 
+        private const string MeshSystemPrompt =
+            "You are the station fabricator's geometry stage. You are shown the blueprint you just drew for a weapon, " +
+            "and you rebuild it as real geometry out of simple primitives. Return a parts list only. " +
+            "Axes, in metres: +Z points forward out of the barrel, +Y is up, +X is right. The grip sits near the origin; " +
+            "the weapon extends forward to at most 0.6 m, and stays within 0.22 m left-right and 0.3 m up-down. " +
+            "Use 8 to 20 parts. Match the blueprint silhouette: barrel count and length, magazine, drum, tanks, fins, " +
+            "sights, stock, grip angle. shape is box, cylinder, sphere, capsule, cone or disc. Cylinders and cones point " +
+            "along their own Y axis, so set rx to 90 to lay one along the barrel. Scale is the full size of the part. " +
+            "color is a hex string taken from the blueprint; glow is true only for energy cells, emitters and lights. " +
+            "muzzle is the point the shot leaves, at the very front of the barrel.";
+
+        private static readonly string MeshSchema =
+            "{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"parts\",\"muzzleX\",\"muzzleY\",\"muzzleZ\"],\"properties\":{" +
+            "\"parts\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"additionalProperties\":false," +
+            "\"required\":[\"shape\",\"x\",\"y\",\"z\",\"rx\",\"ry\",\"rz\",\"sx\",\"sy\",\"sz\",\"color\",\"glow\"],\"properties\":{" +
+            "\"shape\":{\"type\":\"string\",\"enum\":[\"box\",\"cylinder\",\"sphere\",\"capsule\",\"cone\",\"disc\"]}," +
+            "\"x\":{\"type\":\"number\"},\"y\":{\"type\":\"number\"},\"z\":{\"type\":\"number\"}," +
+            "\"rx\":{\"type\":\"number\"},\"ry\":{\"type\":\"number\"},\"rz\":{\"type\":\"number\"}," +
+            "\"sx\":{\"type\":\"number\"},\"sy\":{\"type\":\"number\"},\"sz\":{\"type\":\"number\"}," +
+            "\"color\":{\"type\":\"string\"},\"glow\":{\"type\":\"boolean\"}}}}," +
+            "\"muzzleX\":{\"type\":\"number\"},\"muzzleY\":{\"type\":\"number\"},\"muzzleZ\":{\"type\":\"number\"}}}";
+
+        /// <summary>Reads the blueprint it just produced and returns the weapon as primitives Unity can build.</summary>
+        public async Awaitable<string> DescribeWeaponMesh(string weaponName, string traits, byte[] blueprintPng, FabricationTrace trace = null)
+        {
+            string user = $"Weapon: {weaponName}. Traits: {traits}. Rebuild the weapon in the blueprint as primitives.";
+            string image = blueprintPng != null ? Convert.ToBase64String(blueprintPng) : null;
+            return await Chat(settings.WeaponModel, MeshSystemPrompt, user, "weapon_mesh", MeshSchema, settings.WeaponTimeoutSeconds,
+                trace, "openai.weapon_mesh", image);
+        }
+
         private async Awaitable<byte[]> Image(string prompt, Sentry.ISpan span = null, bool transparent = false)
         {
             string body = "{\"model\":" + Http.Quote(settings.ImageModel) + ",\"prompt\":" + Http.Quote(prompt) +

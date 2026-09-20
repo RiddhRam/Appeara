@@ -37,6 +37,62 @@ namespace Armory
         /// Replaces the blocky placeholder parts with the AI's own art: an alpha-cut cutout of the transparent
         /// render, stood up in the weapon's forward plane so the silhouette in your hand is the generated design.
         /// </summary>
+        /// <summary>
+        /// Builds the geometry GPT derived from its own blueprint, replacing the placeholder. Parts are already
+        /// clamped to a weapon-sized box by <see cref="WeaponMesh"/>.
+        /// </summary>
+        public static void ApplyGeneratedMesh(Weapon weapon, System.Collections.Generic.List<MeshPart> parts, Vector3 muzzle)
+        {
+            if (weapon == null || parts == null || parts.Count == 0) return;
+            WeaponMesh.Normalize(parts, ref muzzle);
+            var old = weapon.transform.Find("Parts");
+            if (old != null) Object.Destroy(old.gameObject);
+
+            var root = new GameObject("Parts").transform;
+            root.SetParent(weapon.transform, false);
+            foreach (var part in parts)
+            {
+                var material = part.Glow ? Mats.Lit(part.Color, 1.6f) : Mats.Lit(part.Color);
+                var shape = Mats.Shape(ShapeOf(part.Shape), root, part.Position, ScaleOf(part), material, name: part.Shape.ToString());
+                shape.transform.localRotation = Quaternion.Euler(part.Rotation);
+            }
+
+            var muzzleTransform = new GameObject("Muzzle").transform;
+            muzzleTransform.SetParent(weapon.transform, false);
+            muzzleTransform.localPosition = muzzle;
+            weapon.Muzzle = muzzleTransform;
+            root.gameObject.AddComponent<PopIn>();
+        }
+
+        private static PrimitiveType ShapeOf(PartShape shape)
+        {
+            switch (shape)
+            {
+                case PartShape.Sphere: return PrimitiveType.Sphere;
+                case PartShape.Capsule: return PrimitiveType.Capsule;
+                case PartShape.Cylinder:
+                case PartShape.Cone:
+                case PartShape.Disc: return PrimitiveType.Cylinder;
+                default: return PrimitiveType.Cube;
+            }
+        }
+
+        private static Vector3 ScaleOf(MeshPart part)
+        {
+            // Unity's cylinder and capsule are 2 units tall, so halve their height to match the requested size.
+            switch (part.Shape)
+            {
+                case PartShape.Cylinder:
+                case PartShape.Cone:
+                case PartShape.Capsule:
+                    return new Vector3(part.Scale.x, part.Scale.y * 0.5f, part.Scale.z);
+                case PartShape.Disc:
+                    return new Vector3(part.Scale.x, Mathf.Min(part.Scale.y, 0.02f), part.Scale.z);
+                default:
+                    return part.Scale;
+            }
+        }
+
         public static void ApplyGeneratedArt(Weapon weapon, Texture2D art)
         {
             if (weapon == null || art == null) return;
