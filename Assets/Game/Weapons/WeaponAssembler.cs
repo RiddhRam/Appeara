@@ -18,8 +18,14 @@ namespace Armory
             var parts = new GameObject("Parts").transform;
             parts.SetParent(root.transform, false);
 
-            float bodyLength = BuildBody(spec.Body, parts, dark, accent);
-            Transform muzzle = BuildBarrel(spec.Barrel, parts, dark, accent, bodyLength, spec.FireMode);
+            Transform muzzle;
+            if (spec.FireMode == FireMode.Melee) muzzle = BuildBlade(parts, dark, accent);
+            else if (spec.FireMode == FireMode.Bow) muzzle = BuildBow(parts, dark, accent);
+            else
+            {
+                float bodyLength = BuildBody(spec.Body, parts, dark, accent);
+                muzzle = BuildBarrel(spec.Barrel, parts, dark, accent, bodyLength, spec.FireMode);
+            }
 
             var weapon = root.AddComponent<Weapon>();
             weapon.Spec = spec;
@@ -115,6 +121,39 @@ namespace Armory
             muzzle.SetParent(weapon.transform, false);
             muzzle.localPosition = new Vector3(0f, 0.02f, length * 0.78f);
             weapon.Muzzle = muzzle;
+        }
+
+        /// <summary>Hilt, guard and a long glowing blade; the tip is the reach point swings are measured from.</summary>
+        private static Transform BuildBlade(Transform parent, Material dark, Material accent)
+        {
+            Mats.Shape(PrimitiveType.Cylinder, parent, new Vector3(0f, 0f, 0.02f), new Vector3(0.035f, 0.06f, 0.035f), dark).transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            Mats.Shape(PrimitiveType.Cube, parent, new Vector3(0f, 0f, 0.09f), new Vector3(0.16f, 0.02f, 0.03f), dark);
+            Mats.Shape(PrimitiveType.Cube, parent, new Vector3(0f, 0f, 0.55f), new Vector3(0.05f, 0.012f, 0.9f), accent);
+            Mats.Shape(PrimitiveType.Cube, parent, new Vector3(0f, 0f, 1.02f), new Vector3(0.03f, 0.012f, 0.12f), accent).transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+
+            var tip = new GameObject("Blade Tip").transform;
+            tip.SetParent(parent, false);
+            tip.localPosition = new Vector3(0f, 0f, 0.62f);
+            return tip;
+        }
+
+        /// <summary>Two limbs, a grip and a glowing string; arrows leave from just ahead of the grip.</summary>
+        private static Transform BuildBow(Transform parent, Material dark, Material accent)
+        {
+            Mats.Shape(PrimitiveType.Cylinder, parent, new Vector3(0f, 0f, 0.04f), new Vector3(0.035f, 0.07f, 0.035f), dark).transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            for (int i = 0; i < 2; i++)
+            {
+                float side = i == 0 ? 1f : -1f;
+                var limb = Mats.Shape(PrimitiveType.Cube, parent, new Vector3(0f, side * 0.17f, 0.02f), new Vector3(0.03f, 0.3f, 0.05f), dark);
+                limb.transform.localRotation = Quaternion.Euler(side * -18f, 0f, 0f);
+                Mats.Shape(PrimitiveType.Sphere, parent, new Vector3(0f, side * 0.3f, -0.02f), Vector3.one * 0.05f, accent);
+            }
+            Mats.Shape(PrimitiveType.Cube, parent, new Vector3(0f, 0f, -0.03f), new Vector3(0.008f, 0.6f, 0.008f), accent);
+
+            var nock = new GameObject("Nock").transform;
+            nock.SetParent(parent, false);
+            nock.localPosition = new Vector3(0f, 0f, 0.12f);
+            return nock;
         }
 
         private static float BuildBody(int variant, Transform parent, Material dark, Material accent)

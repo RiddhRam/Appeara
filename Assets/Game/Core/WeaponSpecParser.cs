@@ -37,12 +37,18 @@ namespace Armory.Core
             if (weapon.Payload == Payload.Cryo) weapon.Mods |= Mods.Slow;
 
             bool thrown = weapon.FireMode == FireMode.Thrown;
-            weapon.FireRate = Mathf.Clamp(Default(spec.fireRate, thrown ? 1.5f : 6f), 0.5f, 15f);
-            weapon.ProjectileCount = Mathf.Clamp(spec.projectileCount <= 0 ? 1 : spec.projectileCount, 1, 12);
+            bool melee = weapon.FireMode == FireMode.Melee;
+            bool bow = weapon.FireMode == FireMode.Bow;
+            // Swings and draws set their own pace: a sword is limited by the arm, a bow by the draw.
+            weapon.FireRate = melee ? Mathf.Clamp(Default(spec.fireRate, 2.5f), 1f, 4f)
+                : bow ? Mathf.Clamp(Default(spec.fireRate, 1.2f), 0.4f, 2.5f)
+                : Mathf.Clamp(Default(spec.fireRate, thrown ? 1.5f : 6f), 0.5f, 15f);
+            weapon.ProjectileCount = melee ? 1 : Mathf.Clamp(spec.projectileCount <= 0 ? 1 : spec.projectileCount, 1, 12);
             weapon.SpreadDeg = Mathf.Clamp(spec.spreadDeg, 0f, 45f);
             if (weapon.ProjectileCount > 1 && weapon.SpreadDeg < 4f) weapon.SpreadDeg = 12f;
             weapon.ProjectileSpeed = thrown
                 ? Mathf.Clamp(Default(spec.projectileSpeed, 14f), 6f, 25f)
+                : bow ? Mathf.Clamp(Default(spec.projectileSpeed, 55f), 20f, 90f)
                 : Mathf.Clamp(Default(spec.projectileSpeed, 40f), 5f, 80f);
             weapon.PierceCount = Mathf.Clamp(Default(spec.pierceCount, 3), 1, 5);
             weapon.BounceCount = Mathf.Clamp(Default(spec.bounceCount, 3), 1, 5);

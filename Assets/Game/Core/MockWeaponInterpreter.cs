@@ -29,6 +29,10 @@ namespace Armory.Core
             if (Has(text, "machine", "minigun", "rapid", "gatling", "smg")) { spec.fireRate = 12f; spec.damage = 8f; }
             if (Has(text, "rail", "sniper")) { spec.projectileSpeed = 80f; spec.damage = 60f; spec.fireRate = 1f; modifiers.Add("piercing"); spec.visual.projectileShape = "bolt"; }
             if (Has(text, "laser", "beam", "ray")) { spec.fireMode = "beam"; spec.payload = "plasma"; spec.damage = 40f; }
+            if (Has(text, "sword", "katana", "blade", "axe", "hammer", "machete", "claw", "whip", "slash", "melee"))
+            { spec.fireMode = "melee"; spec.damage = 55f; spec.fireRate = 2.5f; spec.visual.projectileShape = "bolt"; }
+            if (Has(text, "bow", "crossbow", "arrow", "sling", "charge"))
+            { spec.fireMode = "bow"; spec.damage = 45f; spec.fireRate = 1.2f; spec.projectileSpeed = 60f; spec.visual.projectileShape = "bolt"; }
             if (Has(text, "grenade", "throw", "lob", "toss")) { spec.fireMode = "thrown"; spec.payload = "explosive"; spec.fireRate = 1.5f; spec.damage = 40f; }
             if (Has(text, "mine", "sticky", "sticks")) { modifiers.Add("sticky"); modifiers.Add("proximity"); spec.payload = "explosive"; spec.visual.projectileShape = "mine"; }
             if (Has(text, "homing", "seeking", "seeker", "missile", "rocket", "tracking")) modifiers.Add("homing");

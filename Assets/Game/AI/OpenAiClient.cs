@@ -39,7 +39,12 @@ namespace Armory.AI
         private const string WeaponSystemPrompt =
 @"You are ARIA, the fabrication AI of a space station under alien siege. The player describes a weapon out loud.
 Convert it into a WeaponSpec the station's modular fabricator can build. Be faithful to the request; be creative with the name and visuals.
-- fireMode: 'projectile' (guns, launchers), 'beam' (lasers, rays, flamethrowers, continuous streams), 'thrown' (grenades, lobbed mines, anything arcing).
+- fireMode, the thing the player physically does:
+  'projectile' guns and launchers; 'beam' lasers, rays, flamethrowers, continuous streams; 'thrown' grenades and
+  lobbed mines; 'melee' anything swung by hand (sword, katana, axe, hammer, claws, whip) - the player swings the
+  controller and damage scales with swing speed; 'bow' anything drawn and released (bow, crossbow, slingshot,
+  railgun that charges) - the player holds the trigger to draw and releases to loose, and a full draw hits hardest.
+  Pick melee or bow whenever the request names such a weapon; do not turn a sword into a gun.
 - payload: the damage type. kinetic=bullets/slugs, explosive=rockets/grenades/bombs, plasma=energy bolts/fire, electric=lightning/EMP/tesla, cryo=ice/freeze.
 - modifiers (delivery): homing, piercing, bouncing, sticky, proximity. Only include what the request implies.
 - onHit: splash (area), chain (arcs to nearby enemies), slow.
@@ -56,7 +61,7 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
             "\"required\":[\"name\",\"shipAILine\",\"fireMode\",\"payload\",\"modifiers\",\"onHit\",\"fireRate\",\"projectileCount\",\"spreadDeg\",\"projectileSpeed\",\"damage\",\"pierceCount\",\"bounceCount\",\"chainCount\",\"splashRadius\",\"visual\",\"sfxPrompt\"]," +
             "\"properties\":{" +
             "\"name\":{\"type\":\"string\"},\"shipAILine\":{\"type\":\"string\"}," +
-            "\"fireMode\":{\"type\":\"string\",\"enum\":[\"projectile\",\"beam\",\"thrown\"]}," +
+            "\"fireMode\":{\"type\":\"string\",\"enum\":[\"projectile\",\"beam\",\"thrown\",\"melee\",\"bow\"]}," +
             "\"payload\":{\"type\":\"string\",\"enum\":[\"kinetic\",\"explosive\",\"plasma\",\"electric\",\"cryo\"]}," +
             "\"modifiers\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"enum\":[\"homing\",\"piercing\",\"bouncing\",\"sticky\",\"proximity\"]}}," +
             "\"onHit\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"enum\":[\"splash\",\"chain\",\"slow\"]}}," +

@@ -4,7 +4,11 @@ using UnityEngine;
 
 namespace Armory.Core
 {
-    public enum FireMode { Projectile, Beam, Thrown }
+    /// <summary>
+    /// How the weapon is used, which decides what the player physically does: pull the trigger (gun), hold it
+    /// (beam), lob it (grenade), swing the controller (sword) or draw and release (bow).
+    /// </summary>
+    public enum FireMode { Projectile, Beam, Thrown, Melee, Bow }
     public enum Payload { Kinetic, Explosive, Plasma, Electric, Cryo }
     public enum ProjectileShape { Orb, Bolt, Disc, Mine }
 

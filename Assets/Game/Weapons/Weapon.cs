@@ -14,6 +14,15 @@ namespace Armory
         public AudioClip ImpactClip;
 
         private AudioSource source;
+        /// <summary>0-1 while a bow is being drawn, for the HUD and the bow's own animation.</summary>
+        public float DrawPower { get; private set; }
+        private float controllerSpeed;
+        private Vector3 lastPosition;
+        private bool hasLastPosition;
+        private bool swinging;
+        private float swingEndsAt;
+        private float drawStarted;
+        private readonly System.Collections.Generic.HashSet<Enemy> hitThisSwing = new System.Collections.Generic.HashSet<Enemy>();
         private bool warnedMissingSpec;
         private float cooldown;
         private LineRenderer beam;
@@ -36,10 +45,71 @@ namespace Armory
                 return;
             }
             cooldown -= Time.deltaTime;
+            TrackSpeed(aim);
             if (Spec.FireMode == FireMode.Beam) { UpdateBeam(triggerHeld, aim); return; }
+            if (Spec.FireMode == FireMode.Melee) { UpdateMelee(aim); return; }
+            if (Spec.FireMode == FireMode.Bow) { UpdateBow(triggerHeld, aim); return; }
             if (!triggerHeld || cooldown > 0f) return;
             cooldown = 1f / Spec.FireRate;
             Fire(aim);
+        }
+
+        /// <summary>Controller speed, smoothed a little so a single noisy frame cannot trigger a swing.</summary>
+        private void TrackSpeed(Transform aim)
+        {
+            Vector3 position = Muzzle != null ? Muzzle.position : aim.position;
+            if (Time.deltaTime > 0f && hasLastPosition)
+                controllerSpeed = Mathf.Lerp(controllerSpeed, Vector3.Distance(position, lastPosition) / Time.deltaTime, 0.5f);
+            lastPosition = position;
+            hasLastPosition = true;
+        }
+
+        /// <summary>Swing the controller: everything the blade sweeps through takes a hit, once per swing.</summary>
+        private void UpdateMelee(Transform aim)
+        {
+            float strength = SwingAndDraw.SwingStrength(controllerSpeed);
+            if (strength <= 0f)
+            {
+                if (swinging && Time.time > swingEndsAt) { swinging = false; hitThisSwing.Clear(); }
+                return;
+            }
+            if (!swinging) { swinging = true; hitThisSwing.Clear(); }
+            swingEndsAt = Time.time + SwingAndDraw.SwingCooldown;
+
+            Vector3 origin = Muzzle != null ? Muzzle.position : aim.position;
+            float damage = SwingAndDraw.SwingDamage(Spec.Damage, controllerSpeed);
+            foreach (var enemy in Enemy.All)
+            {
+                if (enemy == null || !enemy.Alive || hitThisSwing.Contains(enemy)) continue;
+                if (Vector3.Distance(enemy.Center, origin) > SwingAndDraw.Reach + enemy.Radius) continue;
+                hitThisSwing.Add(enemy);
+                Effects.OnHit(Spec, enemy.Center, enemy, damage);
+                Effects.Flash(enemy.Center, Spec.Color, 1.4f);
+                source.PlayOneShot(FireClip != null ? FireClip : ProceduralSfx.Shot(Spec.Payload), 0.8f);
+            }
+        }
+
+        /// <summary>Hold the trigger to draw, release to loose. A fuller draw hits harder and flies faster.</summary>
+        private void UpdateBow(bool triggerHeld, Transform aim)
+        {
+            if (triggerHeld)
+            {
+                if (drawStarted <= 0f) drawStarted = Time.time;
+                DrawPower = SwingAndDraw.DrawPower(Time.time - drawStarted);
+                return;
+            }
+            if (drawStarted <= 0f) return;
+            float held = Time.time - drawStarted;
+            drawStarted = 0f;
+            DrawPower = 0f;
+            if (!SwingAndDraw.CanRelease(held) || cooldown > 0f) return;
+            cooldown = 1f / Spec.FireRate;
+
+            Vector3 origin = Muzzle != null ? Muzzle.position : aim.position;
+            var arrow = SpawnProjectile(origin, aim.rotation * Vector3.forward * (Spec.ProjectileSpeed * SwingAndDraw.DrawSpeedMultiplier(held)));
+            if (arrow != null) arrow.DamageScale = SwingAndDraw.DrawDamageMultiplier(held);
+            source.pitch = Mathf.Lerp(1.15f, 0.85f, SwingAndDraw.DrawPower(held));
+            source.PlayOneShot(FireClip != null ? FireClip : ProceduralSfx.Shot(Spec.Payload), 0.9f);
         }
 
         private void Fire(Transform aim)
@@ -56,7 +126,7 @@ namespace Armory
             source.PlayOneShot(FireClip != null ? FireClip : ProceduralSfx.Shot(Spec.Payload), FireClip != null ? 0.9f : 0.6f);
         }
 
-        private void SpawnProjectile(Vector3 origin, Vector3 velocity)
+        private Projectile SpawnProjectile(Vector3 origin, Vector3 velocity)
         {
             using var marker = ProjectileSpawnMarker.Auto();
             float size = Spec.Shape == ProjectileShape.Mine ? 0.16f : Spec.FireMode == FireMode.Thrown ? 0.14f : 0.08f;
@@ -78,7 +148,9 @@ namespace Armory
                 trail.endWidth = 0f;
                 trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             }
-            go.AddComponent<Projectile>().Launch(Spec, velocity);
+            var projectile = go.AddComponent<Projectile>();
+            projectile.Launch(Spec, velocity);
+            return projectile;
         }
 
         private void UpdateBeam(bool held, Transform aim)

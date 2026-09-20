@@ -22,6 +22,8 @@ namespace Armory
 
         public ParsedWeapon Weapon;
         public Vector3 Velocity;
+        /// <summary>Bow draws scale a single arrow's damage without changing the weapon's spec.</summary>
+        public float DamageScale = 1f;
         public bool Stuck { get; private set; }
 
         private const float Gravity = 9.81f;
@@ -112,7 +114,7 @@ namespace Armory
             }
             if (Detonates) { Finish(point, enemy); return true; }
 
-            Effects.OnHit(Weapon, point, enemy, Weapon.Damage);
+            Effects.OnHit(Weapon, point, enemy, Weapon.Damage * DamageScale);
             if (piercesLeft-- > 0)
             {
                 WorldText.Popup(point, "PIERCE", new Color(0.8f, 0.9f, 1f), 0.03f);
@@ -180,11 +182,11 @@ namespace Armory
             if (Detonates && !Weapon.Has(Mods.Splash))
             {
                 // Mines/grenades without splash still need an area pop to feel right.
-                Effects.Explode(Weapon, point, 1.5f, Weapon.Damage, direct);
-                if (direct != null) direct.TakeHit(Weapon, Weapon.Damage, point);
-                if (Weapon.Has(Mods.Chain)) Effects.Chain(Weapon, point, direct, Weapon.ChainCount, Weapon.Damage * 0.6f);
+                Effects.Explode(Weapon, point, 1.5f, Weapon.Damage * DamageScale, direct);
+                if (direct != null) direct.TakeHit(Weapon, Weapon.Damage * DamageScale, point);
+                if (Weapon.Has(Mods.Chain)) Effects.Chain(Weapon, point, direct, Weapon.ChainCount, Weapon.Damage * DamageScale * 0.6f);
             }
-            else Effects.OnHit(Weapon, point, direct != null && direct.Alive ? direct : null, Weapon.Damage);
+            else Effects.OnHit(Weapon, point, direct != null && direct.Alive ? direct : null, Weapon.Damage * DamageScale);
             Kill();
         }
 
