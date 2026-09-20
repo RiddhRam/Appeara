@@ -105,6 +105,7 @@ namespace Armory
         {
             InArmory = true;
             CombatActive = false;
+            ArmoryGame.Instance?.Vitals.Restore();
             startRequested = false;
             float earliest = Time.time + ArmoryMinimumSeconds;
             string prompt = WaveIndex == 0 ? "Say \"ready\" when you want the first wave." : "Say \"ready\" when you want them.";

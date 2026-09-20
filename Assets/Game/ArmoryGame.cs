@@ -25,6 +25,8 @@ namespace Armory
         [Tooltip("Build the placeholder core pillar. Off when the station's own centrepiece plays the core.")]
         public bool BuildCoreVisual = true;
 
+        /// <summary>The player's own shields; aliens that reach you drain them, and they recharge after a lull.</summary>
+        public readonly PlayerVitals Vitals = new PlayerVitals();
         public readonly CombatLog WaveLog = new CombatLog();
         public ArmoryRig Rig { get; private set; }
 
@@ -35,6 +37,8 @@ namespace Armory
         {
             Instance = this;
             DisableOtherCameras();
+            // Space outside the windows: the default sky is bright daylight, which ruins every shot.
+            SpaceSky.Apply();
             // This scene prop is now spawned as the final encounter. Only hide it in the live session.
             foreach (var root in gameObject.scene.GetRootGameObjects())
                 if (root.name == "Alien Animal_Fbx_7.4" && root.GetComponentInChildren<SkinnedMeshRenderer>() != null)
@@ -95,6 +99,9 @@ namespace Armory
             var prompt = new GameObject("Armory Prompt").AddComponent<ArmoryPrompt>();
             prompt.transform.SetParent(transform, false);
             prompt.Rig = Rig;
+
+            // What the judges watch: a clean third-person render on the monitor while the rig drives the headset.
+            SpectatorView.Create(Rig);
         }
 
         private void DisableOtherCameras()
@@ -138,6 +145,27 @@ namespace Armory
                     pads[i].Linked = pads[(i + pads.Length / 2) % pads.Length];
         }
 
+        /// <summary>Aliens within reach of the player claw at them; shields recover once you break away.</summary>
+        private void UpdateVitals()
+        {
+            float now = Time.time;
+            Vitals.Tick(Time.deltaTime, now);
+            if (Rig == null) return;
+
+            Vector3 feet = Rig.FeetPosition;
+            foreach (var enemy in Enemy.All)
+            {
+                if (enemy == null || !enemy.Alive) continue;
+                if (Vector3.Distance(enemy.Center, feet + Vector3.up) > enemy.Radius + 1.4f) continue;
+                float taken = Vitals.Damage(enemy.CoreDamage * 0.6f, now);
+                if (taken <= 0f) continue;
+                Effects.Flash(feet + Vector3.up * 1.4f, UiKit.Alien, 1.2f);
+                ProceduralSfx.PlayAt(ProceduralSfx.Hit, feet + Vector3.up, 0.8f);
+                if (Vitals.Down) ShipAI.Instance?.SayShip("Shields down. Fall back to a pad.", "SHIELDS DOWN");
+                break;
+            }
+        }
+
         public void RecordDamage(ParsedWeapon weapon, float amount)
         {
             WaveLog.Record(weapon, amount);
@@ -149,6 +177,7 @@ namespace Armory
 
         private void Update()
         {
+            UpdateVitals();
             var keyboard = Keyboard.current;
             if (keyboard == null || Rig.TextEntryActive) return;
             if (keyboard.nKey.wasPressedThisFrame) director.SkipWave();

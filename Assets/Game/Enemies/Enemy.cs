@@ -26,6 +26,7 @@ namespace Armory
         public HiveAvatar Avatar;
 
         private Renderer[] renderers;
+        private HealthBar healthBar;
         private GameObject shieldBubble;
         private GameObject defensiveShell;
         private float baseMaxHealth;
@@ -266,12 +267,22 @@ namespace Armory
             else Health -= amount;
 
             ArmoryGame.Instance?.RecordDamage(weapon, amount);
+            ShowHealth();
             if (!ExternallyDriven) Flash();
             if (multiplier >= 1.4f) WorldText.Popup(Center + Vector3.up * 0.8f, "WEAK!", new Color(1f, 0.85f, 0.2f));
             else if (multiplier <= 0.45f) WorldText.Popup(Center + Vector3.up * 0.8f, shield ? "SHIELDED" : "RESISTED", new Color(0.6f, 0.6f, 0.7f));
 
             if (Health <= 0f) Die(true);
             return amount;
+        }
+
+        /// <summary>Bars are created on first damage: a 45-strong swarm should not spawn 45 bars up front.</summary>
+        private void ShowHealth()
+        {
+            if (Kind == EnemyKind.Boss) return;
+            if (healthBar == null)
+                healthBar = HealthBar.Create(transform, Vector3.up * (Radius * 2f + 0.55f), Mathf.Max(0.8f, Radius * 2.2f), BaseColor, false);
+            healthBar.Set(Health / Mathf.Max(1f, MaxHealth));
         }
 
         public void ApplySlow(float factor, float seconds)

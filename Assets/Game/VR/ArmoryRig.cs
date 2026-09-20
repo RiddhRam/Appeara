@@ -86,7 +86,8 @@ namespace Armory
             Head = head.GetComponent<Camera>();
             Head.nearClipPlane = 0.03f;
             Head.farClipPlane = 400f;
-            Head.clearFlags = CameraClearFlags.SolidColor;
+            // Skybox, not a flat fill: the station's windows look out onto the generated starfield.
+            Head.clearFlags = CameraClearFlags.Skybox;
             Head.backgroundColor = new Color(0.01f, 0.01f, 0.03f);
 
             RightHand = MakeHand("Right Hand", new Color(0.2f, 0.8f, 1f));
@@ -153,9 +154,11 @@ namespace Armory
             var manager = XRGeneralSettings.Instance != null ? XRGeneralSettings.Instance.Manager : null;
             if (manager == null || !startedSubsystems) return;
             startedSubsystems = false;
-            manager.StopSubsystems();
+            // Only tear down a session this rig started. Shutting down Unity's own session here is what crashed
+            // the editor inside Internal_DestroySession when leaving Play mode.
             if (!ownsLoader) return;
             ownsLoader = false;
+            manager.StopSubsystems();
             manager.DeinitializeLoader();
         }
 
@@ -168,6 +171,14 @@ namespace Armory
         {
             yield return null;
             var manager = XRGeneralSettings.Instance != null ? XRGeneralSettings.Instance.Manager : null;
+
+            // "Initialize XR on Startup" is on, so Unity is already bringing the loader up. Starting a second one
+            // from here meant two owners of one OpenXR session, which crashed the editor natively on entering Play.
+            // Wait for Unity's loader; only start one ourselves if it never arrives.
+            float waitUntil = Time.realtimeSinceStartup + 4f;
+            while (manager != null && manager.activeLoader == null && Time.realtimeSinceStartup < waitUntil)
+                yield return null;
+
             if (manager != null && manager.activeLoader == null)
             {
                 ownsLoader = true;

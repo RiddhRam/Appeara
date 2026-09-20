@@ -12,6 +12,7 @@ namespace Armory
         public float Health { get; private set; }
 
         private Transform spinner;
+        private HealthBar banner;
 
         private void Awake()
         {
@@ -29,9 +30,21 @@ namespace Armory
             spinner = Mats.Shape(PrimitiveType.Cube, transform, new Vector3(0f, 4.2f, 0f), Vector3.one * 0.8f, Mats.Lit(new Color(0.3f, 1f, 1f), 2f), name: "Core Crystal").transform;
         }
 
+        private void Start()
+        {
+            // Floating over the core itself, so the thing you are protecting reads from anywhere in the arena.
+            banner = HealthBar.Create(transform, Vector3.up * 9f, 6f, UiKit.Cyan, true, "Refinery core");
+            banner.Set(1f);
+        }
+
         private void Update()
         {
             spinner.Rotate(20f * Time.deltaTime, 45f * Time.deltaTime, 0f);
+            if (banner != null)
+            {
+                banner.Set(Health / MaxHealth);
+                banner.SetTitle($"Refinery core   {Mathf.CeilToInt(Health)}%");
+            }
         }
 
         public void TakeDamage(float amount)

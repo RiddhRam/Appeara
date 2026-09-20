@@ -17,6 +17,8 @@ namespace Armory
         private const float WristW = 0.24f, WristH = 0.155f, WristHeader = 0.022f, Pad = 0.012f, Column = 0.052f;
         private TextMeshPro waveCounter, waveName, coreValue, hostiles, weaponName, weaponTraits, adaptations, hint;
         private Material coreBar;
+        private Material shieldBar;
+        private TextMeshPro shieldValue;
 
         // Comms card
         private const float CommsW = 1.5f, CommsH = 0.5f, CommsHeader = 0.064f, CommsPad = 0.04f, CommsDistance = 2.0f, SpeakerColumn = 0.24f;
@@ -68,6 +70,11 @@ namespace Armory
             RowLabel(card, "Core", left, y);
             coreBar = UiKit.Bar(card, "Core Bar", new Vector3(left + Column, y - 0.0015f, 0f), new Vector2(0.12f, 0.0055f), 24, UiKit.Cyan);
             coreValue = UiKit.Text(card, "Core Value", new Vector3(right, y + 0.0005f, 0f), 0.0095f, UiKit.MonoStrong, UiKit.Ink, TextAlignmentOptions.TopRight);
+
+            y -= 0.017f;
+            RowLabel(card, "Shields", left, y);
+            shieldBar = UiKit.Bar(card, "Shield Bar", new Vector3(left + Column, y - 0.0015f, 0f), new Vector2(0.12f, 0.0055f), 24, UiKit.Go);
+            shieldValue = UiKit.Text(card, "Shield Value", new Vector3(right, y + 0.0005f, 0f), 0.0095f, UiKit.MonoStrong, UiKit.Ink, TextAlignmentOptions.TopRight);
 
             y -= 0.017f;
             RowLabel(card, "Hostiles", left, y);
@@ -205,6 +212,16 @@ namespace Armory
                 coreBar.SetFloat("_Pulse", fraction <= 0.25f ? 1f : 0f);
                 coreValue.text = Mathf.CeilToInt(core.Health) + "%";
                 coreValue.color = fraction > 0.25f ? UiKit.Ink : UiKit.Alien;
+            }
+            var game = ArmoryGame.Instance;
+            if (game != null && shieldBar != null)
+            {
+                float shields = game.Vitals.Fraction;
+                shieldBar.SetFloat("_Fill", shields);
+                shieldBar.SetColor("_On", shields > 0.5f ? UiKit.Go : shields > 0.25f ? UiKit.Amber : UiKit.Alien);
+                shieldBar.SetFloat("_Pulse", shields <= 0.25f ? 1f : 0f);
+                shieldValue.text = Mathf.CeilToInt(game.Vitals.Shield) + "%";
+                shieldValue.color = shields > 0.25f ? UiKit.Ink : UiKit.Alien;
             }
             if (ai != null && ai.Current != null)
             {
