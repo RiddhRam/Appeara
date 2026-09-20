@@ -87,6 +87,61 @@ namespace Armory.AI
             return new MothershipSpawnTrace(transaction, wave);
         }
 
+        public static ITransactionTracer StartPerformanceWindow(int wave)
+        {
+            var transaction = SentrySdk.StartTransaction("armory.frame_window", "performance.frame_time");
+            transaction.SetTag("wave", wave.ToString());
+            return transaction;
+        }
+
+        public static void FinishPerformanceWindow(ITransactionTracer transaction, float averageMs, float p95Ms, float maxMs,
+            int enemySpawns, int enemyDespawns, int projectileSpawns, int projectileDespawns)
+        {
+            if (transaction == null) return;
+            transaction.SetTag("frame.avg_ms", Invariant(averageMs));
+            transaction.SetTag("frame.p95_ms", Invariant(p95Ms));
+            transaction.SetTag("frame.max_ms", Invariant(maxMs));
+            transaction.SetTag("churn.enemy_spawn", enemySpawns.ToString());
+            transaction.SetTag("churn.enemy_despawn", enemyDespawns.ToString());
+            transaction.SetTag("churn.projectile_spawn", projectileSpawns.ToString());
+            transaction.SetTag("churn.projectile_despawn", projectileDespawns.ToString());
+            transaction.Finish();
+            SentrySdk.Logger.LogInfo(log =>
+            {
+                log.SetAttribute("frame.avg_ms", averageMs);
+                log.SetAttribute("frame.p95_ms", p95Ms);
+                log.SetAttribute("frame.max_ms", maxMs);
+                log.SetAttribute("churn.enemy_spawn", enemySpawns);
+                log.SetAttribute("churn.enemy_despawn", enemyDespawns);
+                log.SetAttribute("churn.projectile_spawn", projectileSpawns);
+                log.SetAttribute("churn.projectile_despawn", projectileDespawns);
+            }, "Frame window p95 {0} ms, max {1} ms", p95Ms, maxMs);
+        }
+
+        public static void FrameSpikeLog(float frameMs, float rollingAverageMs, int wave, int enemies, int projectiles,
+            string recentActivity, float activityAge)
+        {
+            var data = new Dictionary<string, string>
+            {
+                { "frame_ms", Invariant(frameMs) }, { "average_ms", Invariant(rollingAverageMs) },
+                { "wave", wave.ToString() }, { "enemies", enemies.ToString() }, { "projectiles", projectiles.ToString() },
+                { "recent_activity", recentActivity ?? "none" }, { "activity_age", Invariant(activityAge) }
+            };
+            SentrySdk.AddBreadcrumb("Frame-time spike", "armory.performance", "warning", data);
+            SentrySdk.Logger.LogWarning(log =>
+            {
+                log.SetAttribute("frame.ms", frameMs);
+                log.SetAttribute("frame.rolling_average_ms", rollingAverageMs);
+                log.SetAttribute("wave", wave);
+                log.SetAttribute("objects.enemies", enemies);
+                log.SetAttribute("objects.projectiles", projectiles);
+                log.SetAttribute("recent_activity", recentActivity ?? "none");
+                log.SetAttribute("recent_activity_age_seconds", activityAge);
+            }, "Frame-time spike: {0} ms after {1}", frameMs, recentActivity ?? "unknown activity");
+        }
+
+        private static string Invariant(float value) => value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
         /// <summary>A wave transaction gives the Unity profiler a gameplay-sized window, especially useful for swarms.</summary>
         public static ITransactionTracer StartWave(int waveIndex, string waveName, int enemyCount)
         {
@@ -348,5 +403,114 @@ namespace Armory.AI
             finished = true;
             transaction?.Finish();
         }
+    }
+
+    public enum PerformanceObjectKind { Enemy, Projectile }
+
+    /// <summary>Low-allocation frame sampler feeding Sentry profiles with object-churn context.</summary>
+    public static class ArmoryPerformance
+    {
+        private static int enemySpawns, enemyDespawns, projectileSpawns, projectileDespawns;
+        public static string RecentActivity { get; private set; } = "startup";
+        public static float RecentActivityTime { get; private set; }
+
+        public static void Record(PerformanceObjectKind kind, bool spawned)
+        {
+            if (kind == PerformanceObjectKind.Enemy)
+            {
+                if (spawned) enemySpawns++; else enemyDespawns++;
+            }
+            else
+            {
+                if (spawned) projectileSpawns++; else projectileDespawns++;
+            }
+            RecentActivity = (kind == PerformanceObjectKind.Enemy ? "enemy" : "projectile") + (spawned ? ".spawn" : ".despawn");
+            RecentActivityTime = Time.realtimeSinceStartup;
+        }
+
+        public static void Drain(out int spawnedEnemies, out int despawnedEnemies, out int spawnedProjectiles, out int despawnedProjectiles)
+        {
+            spawnedEnemies = enemySpawns;
+            despawnedEnemies = enemyDespawns;
+            spawnedProjectiles = projectileSpawns;
+            despawnedProjectiles = projectileDespawns;
+            enemySpawns = enemyDespawns = projectileSpawns = projectileDespawns = 0;
+        }
+    }
+
+    /// <summary>Creates ten-second profiled frame windows and rate-limited spike diagnostics.</summary>
+    public sealed class ArmoryPerformanceMonitor : MonoBehaviour
+    {
+        public const float WindowSeconds = 10f;
+        public const float SpikeThresholdMs = 33.3f;
+        private const float SpikeCooldownSeconds = 1f;
+        private readonly float[] samples = new float[2048];
+        private int sampleCount;
+        private int sampleCursor;
+        private float sampleSum;
+        private float windowStarted;
+        private float nextSpikeLog;
+        private ITransactionTracer transaction;
+
+        private void OnEnable() => StartWindow();
+
+        private void Update()
+        {
+            float frameMs = Time.unscaledDeltaTime * 1000f;
+            if (frameMs <= 0f || frameMs > 1000f) return;
+            if (sampleCount < samples.Length)
+            {
+                samples[sampleCursor++] = frameMs;
+                sampleCount++;
+                sampleSum += frameMs;
+            }
+            else
+            {
+                if (sampleCursor >= samples.Length) sampleCursor = 0;
+                sampleSum -= samples[sampleCursor];
+                samples[sampleCursor++] = frameMs;
+                sampleSum += frameMs;
+            }
+
+            float average = sampleCount > 0 ? sampleSum / sampleCount : frameMs;
+            float now = Time.realtimeSinceStartup;
+            if (frameMs >= SpikeThresholdMs && now >= nextSpikeLog)
+            {
+                nextSpikeLog = now + SpikeCooldownSeconds;
+                int wave = WaveDirector.Instance != null ? WaveDirector.Instance.WaveIndex + 1 : 0;
+                ArmoryTelemetry.FrameSpikeLog(frameMs, average, wave, Enemy.All.Count, Projectile.All.Count,
+                    ArmoryPerformance.RecentActivity, Mathf.Max(0f, now - ArmoryPerformance.RecentActivityTime));
+            }
+            if (now - windowStarted >= WindowSeconds) FinishWindow(true);
+        }
+
+        private void StartWindow()
+        {
+            sampleCount = sampleCursor = 0;
+            sampleSum = 0f;
+            windowStarted = Time.realtimeSinceStartup;
+            int wave = WaveDirector.Instance != null ? WaveDirector.Instance.WaveIndex + 1 : 0;
+            transaction = ArmoryTelemetry.StartPerformanceWindow(wave);
+        }
+
+        private void FinishWindow(bool restart)
+        {
+            if (sampleCount > 0)
+            {
+                var ordered = new float[sampleCount];
+                System.Array.Copy(samples, ordered, sampleCount);
+                System.Array.Sort(ordered);
+                float p95 = ordered[Mathf.Clamp(Mathf.CeilToInt(sampleCount * 0.95f) - 1, 0, sampleCount - 1)];
+                float max = ordered[sampleCount - 1];
+                ArmoryPerformance.Drain(out int enemyIn, out int enemyOut, out int projectileIn, out int projectileOut);
+                ArmoryTelemetry.FinishPerformanceWindow(transaction, sampleSum / sampleCount, p95, max,
+                    enemyIn, enemyOut, projectileIn, projectileOut);
+            }
+            else transaction?.Finish();
+            transaction = null;
+            if (restart) StartWindow();
+        }
+
+        private void OnDisable() => FinishWindow(false);
     }
 }

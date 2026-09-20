@@ -1,5 +1,6 @@
 using Armory.AI;
 using Armory.Core;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace Armory
@@ -7,8 +8,11 @@ namespace Armory
     /// <summary>Builds placeholder aliens. Swap visuals here when real models are ready; stats live here too.</summary>
     public static class EnemyFactory
     {
+        private static readonly ProfilerMarker SpawnMarker = new ProfilerMarker("Armory.Enemy.Spawn");
+
         public static Enemy Spawn(EnemyKind kind, Vector3 position, Vector3 target, MothershipSpawnTrace spawnTrace = null)
         {
+            using var marker = SpawnMarker.Auto();
             var go = new GameObject(kind.ToString());
             go.transform.position = position;
             go.transform.rotation = Quaternion.LookRotation(target - position);

@@ -57,6 +57,7 @@ namespace Armory
             if (GetComponentsInChildren<TeleportPad>().Length == 0) CreateDefaultPads();
 
             new GameObject("Mothership").AddComponent<Mothership>().transform.SetParent(transform, false);
+            new GameObject("Performance Monitor").AddComponent<ArmoryPerformanceMonitor>().transform.SetParent(transform, false);
 
             Rig = new GameObject("Armory Rig").AddComponent<ArmoryRig>();
             Rig.transform.SetParent(transform, false);
