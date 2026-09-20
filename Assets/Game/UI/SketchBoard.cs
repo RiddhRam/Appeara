@@ -50,8 +50,8 @@ namespace Armory
 
             surface = Mats.Glow(Color.white);
             surface.mainTexture = canvas;
-            var quad = Mats.Shape(PrimitiveType.Quad, board, new Vector3(0f, -0.02f, -0.004f), new Vector3(Width, Height, 1f), surface, collider: true, name: "Canvas");
-            quad.GetComponent<BoxCollider>().size = new Vector3(1f, 1f, 0.02f);
+            // Keep the Quad's MeshCollider: RaycastHit.textureCoord needs its mesh UVs for drawing.
+            Mats.Shape(PrimitiveType.Quad, board, new Vector3(0f, -0.02f, -0.004f), new Vector3(Width, Height, 1f), surface, collider: true, name: "Canvas");
 
             hint = UiKit.Text(board, "Hint", new Vector3(0f, -Height / 2f - 0.05f, -0.003f), 0.02f, UiKit.Mono, UiKit.Muted,
                 TextAlignmentOptions.Top, width: Width, uppercase: true);
