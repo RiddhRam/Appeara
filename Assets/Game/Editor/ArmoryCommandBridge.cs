@@ -109,7 +109,11 @@ namespace Armory.Editor
             b.Append("surface hits: ");
             foreach (var pair in Projectile.SurfaceHits) b.Append(pair.Key).Append('=').Append(pair.Value).Append(' ');
             b.AppendLine($"| enemy hits: {Projectile.EnemyHits} | projectiles live: {Projectile.All.Count} stuck: {Projectile.All.FindAll(p => p.Stuck).Count}");
-            b.AppendLine($"mothership: {Mothership.Instance.Describe()} | wave log: {ArmoryGame.Instance.WaveLog.Summary()}");
+            var mothership = Mothership.Instance;
+            string analysis = mothership.HasPendingAnalysis
+                ? $"analyzing '{mothership.PendingWeaponName}' {mothership.AnalysisRemaining:0.0}s model={mothership.WaitingForModel}"
+                : "idle";
+            b.AppendLine($"mothership: {mothership.Describe()} | {analysis} | wave log: {ArmoryGame.Instance.WaveLog.Summary()}");
             var boss = HiveAvatar.Active;
             if (boss != null) b.AppendLine($"boss: {boss.Phase} | attack {boss.CurrentAttack} | hp {boss.Body.Health}/{boss.Body.MaxHealth} | organs {boss.Rules.BrokenCount}/4 | plating {boss.Rules.Plating} | ready {boss.Ready}");
             foreach (var (speaker, text) in ai.Subtitles) b.AppendLine($"  {speaker}: {text}");

@@ -196,6 +196,8 @@ namespace Armory
             }
             transform.position = destination;
             Ready = true;
+            if (Mothership.Instance != null && Mothership.Instance.ActiveDefendedPrimitive != null)
+                Adapt(Mothership.Instance.ActiveDefendedPrimitive);
             Play(assets != null ? assets.Idle : null, true);
             ArmoryGame.Instance?.ShowBanner("HIVE AVATAR / BREAK THE GLOWING ORGANS", HiveColor);
             int attackIndex = 0;

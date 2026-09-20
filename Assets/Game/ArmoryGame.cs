@@ -26,7 +26,6 @@ namespace Armory
         public bool BuildCoreVisual = true;
 
         public readonly CombatLog WaveLog = new CombatLog();
-        public readonly CombatLog BossWindowLog = new CombatLog();
         public ArmoryRig Rig { get; private set; }
 
         private Hud hud;
@@ -123,10 +122,9 @@ namespace Armory
         public void RecordDamage(ParsedWeapon weapon, float amount)
         {
             WaveLog.Record(weapon, amount);
-            BossWindowLog.Record(weapon, amount);
         }
 
-        public void OnWeaponEquipped(ParsedWeapon spec) { }
+        public void OnWeaponEquipped(ParsedWeapon spec) => Mothership.Instance?.BeginWeaponAnalysis(spec);
 
         public void ShowBanner(string text, Color color) => hud?.ShowBanner(text, color);
 

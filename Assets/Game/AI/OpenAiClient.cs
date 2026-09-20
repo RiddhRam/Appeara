@@ -9,9 +9,10 @@ using UnityEngine.Networking;
 namespace Armory.AI
 {
     [Serializable]
-    public sealed class MothershipReply
+    public sealed class WeaponCounterReply
     {
-        public string[] counters;
+        public string defense;
+        public string tactic;
         public string taunt;
     }
 
@@ -74,30 +75,35 @@ If the request is vague or not a weapon, build the closest fun weapon anyway.";
             return await Chat(settings.WeaponModel, WeaponSystemPrompt, user, "weapon_spec", WeaponSchema, settings.WeaponTimeoutSeconds, trace, "openai.weapon_spec");
         }
 
-        private static readonly string MothershipSystemPrompt =
-            "You are the alien Mothership hive mind besieging a human space station. After each wave you study which weapon traits hurt you most and evolve counters.\n" +
-            "Counters: armor (tougher hides, +HP), shield (energy shields only electric pierces), dodge (sidestep unguided projectiles), teleport (blink forward; beats homing and slow), " +
-            "spread (loose formation; beats splash, chain, piercing), rush (faster; beats slow and cryo), intercept (shoot down slow projectiles, mines, grenades), " +
-            "reflect (mirror plating vs beams and plasma), resist:<trait> (70% less damage from that trait).\n" +
-            "Pick 1-3 counters aimed at the traits that dealt the most damage. Avoid re-picking counters already active.\n" +
-            "taunt: one menacing but slightly funny sentence (max 18 words) addressed to the humans, referencing what they used.";
+        private static readonly string WeaponCounterSystemPrompt =
+            "You are the alien Mothership studying a newly fabricated human weapon. Pick exactly one defensive counter and one tactical counter. " +
+            CounterCatalog.PromptDescription + " " +
+            "The defense must counter a trait the weapon actually has. Never use resist against a trait absent from the supplied trait list. " +
+            "Return a menacing but funny taunt of at most 18 words that references the weapon.";
 
-        private static string MothershipSchema()
+        private static string WeaponCounterSchema()
         {
-            var options = new List<string> { "armor", "shield", "dodge", "teleport", "spread", "rush", "intercept", "reflect" };
-            options.AddRange(new[] { "kinetic", "explosive", "plasma", "electric", "cryo", "beam", "thrown", "homing", "piercing", "bouncing", "sticky", "proximity", "splash", "chain", "slow" }.Select(p => "resist:" + p));
-            string enumList = string.Join(",", options.Select(Http.Quote));
-            return "{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"counters\",\"taunt\"],\"properties\":{" +
-                   "\"counters\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"enum\":[" + enumList + "]}}," +
+            var defenses = new List<string> { "armor", "shield", "reflect" };
+            defenses.AddRange(CounterCatalog.PrimitiveNames.Select(p => "resist:" + p));
+            string defenseEnums = string.Join(",", defenses.Select(Http.Quote));
+            string tacticEnums = string.Join(",", new[] { "dodge", "teleport", "spread", "rush", "intercept" }.Select(Http.Quote));
+            return "{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"defense\",\"tactic\",\"taunt\"],\"properties\":{" +
+                   "\"defense\":{\"type\":\"string\",\"enum\":[" + defenseEnums + "]}," +
+                   "\"tactic\":{\"type\":\"string\",\"enum\":[" + tacticEnums + "]}," +
                    "\"taunt\":{\"type\":\"string\"}}}";
         }
 
-        public async Awaitable<MothershipReply> Adapt(string combatSummary, string activeCounters, string nextWave)
+        /// <summary>Chooses a bounded counter package for a validated runtime weapon.</summary>
+        public async Awaitable<WeaponCounterReply> AnalyzeWeaponCounters(ParsedWeapon weapon, string currentCounters, string enemies)
         {
-            string user = $"Damage share by trait this wave: {combatSummary}\nAlready active counters: {activeCounters}\nNext wave: {nextWave}";
-            string json = await Chat(settings.MothershipModel, MothershipSystemPrompt, user, "mothership_adaptation", MothershipSchema(), settings.MothershipTimeoutSeconds);
+            if (weapon == null) return null;
+            string traits = string.Join(", ", weapon.Primitives());
+            string user = $"Weapon: {weapon.Name}\nMode: {weapon.FireMode}\nPayload: {weapon.Payload}\nTraits: {traits}\n" +
+                          $"Rate: {weapon.FireRate:0.##}/s; count: {weapon.ProjectileCount}; spread: {weapon.SpreadDeg:0.#}; speed: {weapon.ProjectileSpeed:0.#}\n" +
+                          $"Current counters: {currentCounters}\nCurrent enemies: {enemies}";
+            string json = await Chat(settings.MothershipModel, WeaponCounterSystemPrompt, user, "weapon_counter", WeaponCounterSchema(), settings.MothershipTimeoutSeconds);
             if (json == null) return null;
-            try { return JsonUtility.FromJson<MothershipReply>(json); }
+            try { return JsonUtility.FromJson<WeaponCounterReply>(json); }
             catch (Exception error) { LastError = error.Message; return null; }
         }
 

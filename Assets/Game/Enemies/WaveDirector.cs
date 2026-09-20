@@ -51,14 +51,14 @@ namespace Armory
 
         private Coroutine flow;
         private readonly List<Coroutine> spawners = new List<Coroutine>();
-        private float nextBossAdapt;
-        private bool bossAlive;
         private Sentry.ITransactionTracer activeWaveTrace;
 
         private void Awake() => Instance = this;
 
         /// <summary>True while the player is between waves and free to design a weapon.</summary>
         public bool InArmory { get; private set; }
+        /// <summary>True only while a wave is spawning or has living enemies; counter analysis advances only here.</summary>
+        public bool CombatActive { get; private set; }
 
         private bool startRequested;
 
@@ -66,15 +66,6 @@ namespace Armory
 
         /// <summary>Player said "ready" or pressed the button; the wave starts on the next frame.</summary>
         public void RequestWaveStart() => startRequested = true;
-
-        private void Update()
-        {
-            if (!bossAlive || Time.time < nextBossAdapt) return;
-            nextBossAdapt = Time.time + Mothership.BossAdaptSeconds;
-            var game = ArmoryGame.Instance;
-            Mothership.Instance?.BossAdapt(game.BossWindowLog);
-            game.BossWindowLog.Clear();
-        }
 
         private IEnumerator Run(int startIndex, float delay)
         {
@@ -92,16 +83,15 @@ namespace Armory
                 int enemyCount = 0;
                 foreach (var group in wave.Groups) enemyCount += group.Count;
                 activeWaveTrace = ArmoryTelemetry.StartWave(WaveIndex + 1, wave.Name, enemyCount);
+                CombatActive = true;
                 yield return SpawnWave(wave);
                 while (Alive > 0 || PendingSpawns > 0) yield return null;
+                CombatActive = false;
                 ArmoryTelemetry.FinishWave(activeWaveTrace, "cleared");
                 activeWaveTrace = null;
-                bossAlive = false;
 
                 if (WaveIndex == Waves.Count - 1) break;
-                State = "Wave cleared. Mothership adapting...";
-                _ = Mothership.Instance.AdaptAfterWave(ArmoryGame.Instance.WaveLog, Waves[WaveIndex + 1].Name);
-                while (Mothership.Instance.Thinking) yield return null;
+                State = "Wave cleared. Return to the armory.";
             }
             State = "VICTORY. The station holds.";
             ShipAI.Instance?.SayShip("The mothership is retreating. Not bad for a pile of improvised weapons.", "VICTORY");
@@ -114,6 +104,7 @@ namespace Armory
         private IEnumerator Armory(Wave wave)
         {
             InArmory = true;
+            CombatActive = false;
             startRequested = false;
             float earliest = Time.time + ArmoryMinimumSeconds;
             string prompt = WaveIndex == 0 ? "Say \"ready\" when you want the first wave." : "Say \"ready\" when you want them.";
@@ -160,20 +151,14 @@ namespace Armory
                 var enemy = EnemyFactory.Spawn(group.Kind, position, transform.position);
                 if (group.Kind == EnemyKind.Boss)
                 {
-                    bossAlive = true;
-                    nextBossAdapt = Time.time + Mothership.BossAdaptSeconds;
-                    ArmoryGame.Instance.BossWindowLog.Clear();
-                    ShipAI.Instance?.SayMothership("You have been studied. Everything you build, we will become immune to.", "THE MOTHERSHIP AVATAR");
+                    ShipAI.Instance?.SayMothership("Everything you fabricate, we will analyze and counter.", "THE MOTHERSHIP AVATAR");
                 }
                 PendingSpawns--;
                 if (group.Interval > 0f) yield return new WaitForSeconds(group.Interval);
             }
         }
 
-        public void OnEnemyRemoved(Enemy enemy, bool killed)
-        {
-            if (enemy.Kind == EnemyKind.Boss && killed) bossAlive = false;
-        }
+        public void OnEnemyRemoved(Enemy enemy, bool killed) { }
 
         public void OnCoreDestroyed()
         {
@@ -191,7 +176,7 @@ namespace Armory
             foreach (var spawner in spawners) if (spawner != null) StopCoroutine(spawner);
             spawners.Clear();
             PendingSpawns = 0;
-            bossAlive = false;
+            CombatActive = false;
             foreach (var enemy in new List<Enemy>(Enemy.All)) enemy.Die(false);
             StationCore.Instance?.Repair();
             flow = StartCoroutine(Run(Mathf.Clamp(index, 0, Waves.Count - 1), delay));

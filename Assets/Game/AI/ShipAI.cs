@@ -272,8 +272,8 @@ namespace Armory
             if (spec == null) return;
             if (Current != null) Destroy(Current.gameObject);
             Current = WeaponAssembler.Build(spec, Rig.Aim);
-            ArmoryGame.Instance?.OnWeaponEquipped(spec);
             if (!announce) return;
+            ArmoryGame.Instance?.OnWeaponEquipped(spec);
             ProceduralSfx.PlayAt(ProceduralSfx.Fabricate, Rig.Aim.position, 0.7f);
             SayShip(string.IsNullOrWhiteSpace(spec.ShipAILine) ? "Fabricated: " + spec.Name + "." : spec.ShipAILine, spec.Name.ToUpperInvariant(), trace);
             if (ElevenLabs != null && Settings.GenerateWeaponSfx && spec.SfxPrompt != null)
