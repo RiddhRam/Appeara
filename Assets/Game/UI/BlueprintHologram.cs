@@ -16,6 +16,8 @@ namespace Armory
 
         private Material material;
         private TMPro.TextMeshPro caption;
+        private Transform card;
+        private float cardSize;
         private bool yawOnly;
         private float revealStart = -1f;
 
@@ -27,6 +29,7 @@ namespace Armory
             else root.transform.localPosition = position;
             var hologram = root.AddComponent<BlueprintHologram>();
             hologram.yawOnly = yawOnly;
+            hologram.cardSize = size;
 
             var shader = Shader.Find("Armory/HologramBlueprint");
             if (shader != null) hologram.material = new Material(shader);
@@ -37,7 +40,7 @@ namespace Armory
                 hologram.material = new Material(fallbackShader);
                 hologram.material.SetColor("_BaseColor", Color.white);
             }
-            Mats.Shape(PrimitiveType.Quad, root.transform, Vector3.zero, Vector3.one * size, hologram.material, name: "Card");
+            hologram.card = Mats.Shape(PrimitiveType.Quad, root.transform, Vector3.zero, Vector3.one * size, hologram.material, name: "Card").transform;
             hologram.caption = UiKit.Text(root.transform, "Caption", new Vector3(0f, -size * 0.53f, 0f), size * 0.045f, UiKit.Label, UiKit.Cyan, TMPro.TextAlignmentOptions.Top, width: size * 1.4f, tracking: 14f, uppercase: true);
             root.SetActive(false);
             return hologram;
@@ -48,6 +51,7 @@ namespace Armory
             gameObject.SetActive(true);
             material.SetFloat(HasTex, 0f);
             material.SetFloat(Reveal, 1.1f);
+            SetCardAspect(null);
             revealStart = -1f;
             caption.text = title + "\n<size=60%><color=#6A8AA0>rendering schematic</color></size>";
         }
@@ -59,8 +63,19 @@ namespace Armory
             material.SetTexture(BaseMap, texture);
             material.SetFloat(HasTex, 1f);
             material.SetFloat(Reveal, 0f);
+            SetCardAspect(texture);
             revealStart = Time.time;
             caption.text = title + "\n<size=60%><color=#6A8AA0>schematic // " + source + "</color></size>";
+        }
+
+        /// <summary>Fits the generated image inside the original square footprint without stretching it.</summary>
+        private void SetCardAspect(Texture texture)
+        {
+            if (card == null) return;
+            float aspect = texture != null && texture.height > 0 ? (float)texture.width / texture.height : 1f;
+            float width = aspect >= 1f ? cardSize : cardSize * aspect;
+            float height = aspect >= 1f ? cardSize / aspect : cardSize;
+            card.localScale = new Vector3(width, height, cardSize);
         }
 
         /// <summary>A small readable schematic used only when the image endpoint or texture decode fails.</summary>
