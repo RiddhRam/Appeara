@@ -326,7 +326,7 @@ namespace Armory
                 ProceduralSfx.PlayAt(ProceduralSfx.Fabricate, Rig.Aim.position, 0.5f);
             }
             catch (System.Exception error) { Debug.LogWarning("Weapon art failed: " + error.Message); }
-            finally { trace?.CompleteAsyncWork(); }
+            finally { trace?.Complete(); }
         }
 
         /// <summary>AI concept-art blueprint for the new weapon, cached on disk by name so demo repeats are instant.</summary>
