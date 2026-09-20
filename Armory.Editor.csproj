@@ -50,6 +50,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets/Game/Editor/HiveAvatarSetup.cs" />
+    <Compile Include="Assets/Game/Editor/EffectLibraryBuilder.cs" />
     <Compile Include="Assets/Game/Editor/ArmorySceneSetup.cs" />
     <Compile Include="Assets/Game/Editor/DemoArtPreview.cs" />
     <Compile Include="Assets/Game/Editor/MonsterArtBuilder.cs" />

@@ -50,8 +50,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets/Game/Tests/EnemyVisualsTests.cs" />
+    <Compile Include="Assets/Game/Tests/HiveBossAttackTests.cs" />
     <Compile Include="Assets/Game/Tests/HiveAvatarTests.cs" />
     <Compile Include="Assets/Game/Tests/HiveTargetsTests.cs" />
+    <Compile Include="Assets/Game/Tests/EnemyVisualBinderTests.cs" />
     <Compile Include="Assets/Game/Tests/CoreTests.cs" />
     <Compile Include="Assets/Game/Tests/HiveAttackArtTests.cs" />
     <Compile Include="Assets/Game/Tests/HiveAvatarRigTests.cs" />

@@ -23,6 +23,13 @@ namespace Armory
         private int movingParameter;
         private bool moving;
         private bool movingKnown;
+        // The staged AlienMonster "moving" take is identical to its idle take. This small root-only gait
+        // makes locomotion read in-game until authored walking footage replaces that source clip.
+        private Vector3 modelRestPosition;
+        private Quaternion modelRestRotation;
+        private float gaitPhase;
+        private bool modelPoseKnown;
+        private EnemyKind boundKind;
 
         /// <summary>Root of the instantiated model; null once the enemy has died or when no art was bound.</summary>
         public Transform Model { get; private set; }
@@ -69,7 +76,11 @@ namespace Armory
         public static EnemyVisualBinder Attach(GameObject root, EnemyKind kind)
         {
             var binder = Bind(root, EntryFor(kind));
-            if (binder != null) binder.SetShadows(CastsShadows(kind));
+            if (binder != null)
+            {
+                binder.boundKind = kind;
+                binder.SetShadows(CastsShadows(kind));
+            }
             return binder;
         }
 
@@ -91,7 +102,14 @@ namespace Armory
             // A body out of the enemy pool still carries the model it was fitted with last time. Building a
             // second one would stack two models in the same place and hide the first behind the placeholder
             // sweep below, so the existing one is handed straight back.
-            else if (binder.Model != null) return binder;
+            else if (binder.Model != null)
+            {
+                // Disabling a pooled root resets its Animator to the controller's default parameters, but this
+                // binder used to remember that the previous occupant was already moving. Make the next enemy
+                // write Moving again instead of leaving its freshly re-enabled model in the idle pose.
+                binder.ForgetMotionState();
+                return binder;
+            }
             // Grabbed before the model arrives so the model's own renderers are never in the hide list.
             var placeholders = root.GetComponentsInChildren<Renderer>(true);
             if (!binder.Build(entry))
@@ -128,6 +146,10 @@ namespace Armory
             Model = model;
             BindAnimator(instance, entry);
             Fit(model, transform, entry);
+            modelRestPosition = model.localPosition;
+            modelRestRotation = model.localRotation;
+            gaitPhase = Random.value * Mathf.PI * 2f;
+            modelPoseKnown = true;
             return true;
         }
 
@@ -136,10 +158,10 @@ namespace Armory
             animator = instance.GetComponentInChildren<Animator>();
             if (animator == null) return;
             animator.applyRootMotion = false;
-            // 45 skinned aliens at 90Hz per eye is the whole animation budget, and this model is decoration -
-            // nothing reads its pose. CullCompletely stops an offscreen alien's animator dead; the player's head
-            // is turned away from most of the swarm most of the time, and a frozen pose behind them costs nothing.
-            animator.cullingMode = AnimatorCullingMode.CullCompletely;
+            // Keep evaluating the rig even when Unity has temporarily culled its renderers. CullCompletely can
+            // leave a visible enemy frozen in the pose it had while offscreen (especially with stereo cameras);
+            // CullUpdateTransforms still lets normal render culling save the draw cost while preserving motion.
+            animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
             if (animator.runtimeAnimatorController == null)
             {
                 animator = null;
@@ -164,11 +186,40 @@ namespace Armory
         /// <summary>Walk cycle on while the alien is actually moving; a stunned alien stands still.</summary>
         public void SetMoving(bool value)
         {
-            if (animator == null || movingParameter == 0) return;
             if (movingKnown && moving == value) return;
             movingKnown = true;
             moving = value;
-            animator.SetBool(movingParameter, value);
+            if (animator != null && movingParameter != 0) animator.SetBool(movingParameter, value);
+        }
+
+        private void LateUpdate()
+        {
+            if (!modelPoseKnown || Model == null) return;
+            if (!moving)
+            {
+                Model.localPosition = modelRestPosition;
+                Model.localRotation = modelRestRotation;
+                return;
+            }
+
+            // The model root is decorative, so this never moves its gameplay collider or aim point. Swarmers
+            // bob faster and lower; walkers get a readable stride lift and forward lean.
+            float pace = boundKind == EnemyKind.Swarm ? 11f : 7f;
+            float lift = boundKind == EnemyKind.Swarm ? 0.045f : 0.085f;
+            float step = Mathf.Sin(Time.time * pace + gaitPhase);
+            Model.localPosition = modelRestPosition + Vector3.up * (Mathf.Abs(step) * lift);
+            Model.localRotation = modelRestRotation * Quaternion.Euler(step * (boundKind == EnemyKind.Swarm ? 4f : 7f), 0f, 0f);
+        }
+
+        private void ForgetMotionState()
+        {
+            movingKnown = false;
+            moving = false;
+            if (modelPoseKnown && Model != null)
+            {
+                Model.localPosition = modelRestPosition;
+                Model.localRotation = modelRestRotation;
+            }
         }
 
         /// <summary>
