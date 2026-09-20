@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Armory.Core;
 using Sentry;
 using Sentry.Unity;
 using UnityEngine;
@@ -54,6 +55,23 @@ namespace Armory.AI
             return new FabricationTrace(transaction);
         }
 
+        public static CounterAnalysisTrace StartCounterAnalysis(int revision, int wave, IEnumerable<string> traits, bool offline, bool gateway)
+        {
+            string safeTraits = traits == null ? "none" : string.Join(",", traits);
+            var transaction = SentrySdk.StartTransaction("armory.counter_analysis", "ai.counter");
+            transaction.SetTag("counter.revision", revision.ToString());
+            transaction.SetTag("wave", wave.ToString());
+            transaction.SetTag("weapon.traits", safeTraits);
+            transaction.SetTag("offline_fallback", offline ? "true" : "false");
+            transaction.SetTag("gateway", gateway ? "true" : "false");
+            SentrySdk.AddBreadcrumb("Counter analysis started", "armory.counter", "info",
+                new Dictionary<string, string>
+                {
+                    { "revision", revision.ToString() }, { "wave", wave.ToString() }, { "traits", safeTraits }
+                });
+            return new CounterAnalysisTrace(transaction, revision);
+        }
+
         /// <summary>A wave transaction gives the Unity profiler a gameplay-sized window, especially useful for swarms.</summary>
         public static ITransactionTracer StartWave(int waveIndex, string waveName, int enemyCount)
         {
@@ -96,8 +114,16 @@ namespace Armory.AI
         }
     }
 
+    /// <summary>Minimal trace surface shared by provider calls without exposing prompts or responses.</summary>
+    public interface IArmoryTrace
+    {
+        string TraceId { get; }
+        ISpan StartSpan(string operation, string description = null);
+        void FinishSpan(ISpan span, Exception error = null);
+    }
+
     /// <summary>Owns a transaction until the visible fabrication and all requested asset jobs have completed.</summary>
-    public sealed class FabricationTrace
+    public sealed class FabricationTrace : IArmoryTrace
     {
         private readonly ITransactionTracer transaction;
         private int pendingWork = 1;
@@ -138,6 +164,92 @@ namespace Armory.AI
             transaction?.SetTag("offline_fallback", "true");
             transaction?.SetTag("fallback.reason", reason ?? "unknown");
             ArmoryTelemetry.FallbackLog(this, reason);
+        }
+    }
+
+    /// <summary>Owns one counter-analysis transaction from weapon equip through mutation or cancellation.</summary>
+    public sealed class CounterAnalysisTrace : IArmoryTrace
+    {
+        private readonly ITransactionTracer transaction;
+        private readonly int revision;
+        private readonly ISpan graceSpan;
+        private bool finished;
+
+        internal CounterAnalysisTrace(ITransactionTracer transaction, int revision)
+        {
+            this.transaction = transaction;
+            this.revision = revision;
+            graceSpan = transaction?.StartChild("counter.grace_period", "Combat-time analysis window");
+        }
+
+        public string TraceId => transaction?.GetTraceHeader().TraceId.ToString() ?? "disabled";
+
+        public ISpan StartSpan(string operation, string description = null) => transaction?.StartChild(operation, description ?? operation);
+
+        public void FinishSpan(ISpan span, Exception error = null)
+        {
+            if (span == null) return;
+            if (error == null) span.Finish(); else span.Finish(error);
+        }
+
+        public void RecordModelResult(bool received, bool defenseAccepted, bool tacticAccepted)
+        {
+            if (finished) return;
+            transaction?.SetTag("model.response_received", received ? "true" : "false");
+            transaction?.SetTag("model.defense_accepted", defenseAccepted ? "true" : "false");
+            transaction?.SetTag("model.tactic_accepted", tacticAccepted ? "true" : "false");
+        }
+
+        public void MarkFallback(string reason)
+        {
+            if (finished) return;
+            transaction?.SetTag("offline_fallback", "true");
+            transaction?.SetTag("fallback.reason", reason ?? "unknown");
+            SentrySdk.Logger.LogWarning(log =>
+            {
+                log.SetAttribute("counter.revision", revision);
+                log.SetAttribute("fallback.reason", reason ?? "unknown");
+                log.SetAttribute("armory.trace_id", TraceId);
+            }, "Counter analysis fallback: {0}", reason ?? "unknown");
+        }
+
+        public void MarkStaleResponse()
+        {
+            SentrySdk.AddBreadcrumb("Stale counter response discarded", "armory.counter", "info",
+                new Dictionary<string, string> { { "revision", revision.ToString() }, { "trace_id", TraceId } });
+        }
+
+        public void Complete(CounterPackage package, string source, int appliedEnemies, float combatSeconds)
+        {
+            if (finished) return;
+            graceSpan?.SetTag("combat.seconds", combatSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+            graceSpan?.Finish();
+            transaction?.SetTag("counter.outcome", "applied");
+            transaction?.SetTag("counter.source", source ?? "unknown");
+            transaction?.SetTag("counter.defense", package?.Defense.ToString() ?? "none");
+            transaction?.SetTag("counter.tactic", package?.Tactic.ToString() ?? "none");
+            transaction?.SetTag("counter.applied_enemy_count", appliedEnemies.ToString());
+            SentrySdk.Logger.LogInfo(log =>
+            {
+                log.SetAttribute("counter.revision", revision);
+                log.SetAttribute("counter.source", source ?? "unknown");
+                log.SetAttribute("counter.defense", package?.Defense.ToString() ?? "none");
+                log.SetAttribute("counter.tactic", package?.Tactic.ToString() ?? "none");
+                log.SetAttribute("counter.applied_enemy_count", appliedEnemies);
+                log.SetAttribute("counter.combat_seconds", combatSeconds);
+                log.SetAttribute("armory.trace_id", TraceId);
+            }, "Counter package applied: {0} + {1}", package?.Defense.ToString() ?? "none", package?.Tactic.ToString() ?? "none");
+            finished = true;
+            transaction?.Finish();
+        }
+
+        public void FinishCancelled(string reason)
+        {
+            if (finished) return;
+            graceSpan?.Finish();
+            transaction?.SetTag("counter.outcome", reason ?? "cancelled");
+            finished = true;
+            transaction?.Finish();
         }
     }
 }
