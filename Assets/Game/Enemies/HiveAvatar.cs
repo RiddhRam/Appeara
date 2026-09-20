@@ -10,7 +10,7 @@ using UnityEngine.Playables;
 namespace Armory
 {
     /// <summary>Animated final encounter. Owns its attack clock, organs, plating and all spawned threats.</summary>
-    public sealed class HiveAvatar : MonoBehaviour
+    public sealed class HiveAvatar : MonoBehaviour, IHiveAttackEvents
     {
         public static HiveAvatar Active { get; private set; }
         public readonly HiveAvatarState Rules = new HiveAvatarState();
@@ -18,8 +18,28 @@ namespace Armory
         public string Phase { get; private set; } = "ARRIVING";
         public string CurrentAttack { get; private set; } = "";
         public Vector3 AimPoint => transform.TransformPoint(new Vector3(0f, 6f, 4f));
-        public bool Enraged => Body != null && Body.Health <= Body.MaxHealth * 0.35f;
+        public bool Enraged => Body != null && Body.Health <= Body.MaxHealth * HiveAvatarState.EnrageFraction;
         public bool Ready { get; private set; }
+
+        /// <summary>
+        /// How long the body must survive its own death. The settle clip runs 4.5s and the controller blends into
+        /// it, so Enemy.Die destroying the boss at 3.5s cut the finale off in the middle of the collapse.
+        /// </summary>
+        public const float DeathSequenceSeconds = 5.25f;
+
+        // Authored clip timings from ANIMATION_HANDOFF.md. They are the fallback only: every attack waits on the
+        // animation event and uses these to notice the event never came.
+        private const float StompImpactAt = 1.50f, StompLength = 2.30f;
+        private const float FireballReleaseAt = 1.25f, FireballLength = 1.75f;
+        private const float LaserStartAt = 1.50f, LaserEndAt = 3.50f, LaserLength = 4.50f;
+        private const float EnrageLength = 1.50f;
+        /// <summary>Slack for the controller's blend into an attack before its clip timeline starts.</summary>
+        private const float EventGrace = 0.75f;
+        /// <summary>Warning drawn on the deck before the wind-up begins; VR players need to see it and step.</summary>
+        private const float StompWarning = 1.2f, FireballWarning = 1f, LaserWarning = 1f, SweepWarning = 2.4f;
+        private const float FireballFlight = 0.9f;
+        /// <summary>The authored shockwave ring grows to roughly this radius, so it can be scaled onto the hitbox.</summary>
+        private const float ShockwaveArtRadius = 7.7f;
 
         private static readonly Color HiveColor = new Color(1f, 0.25f, 0.48f);
         private static readonly string[] OrganNames = { "LEFT CLAW", "RIGHT CLAW", "SPORE SAC", "CREST" };
@@ -29,17 +49,24 @@ namespace Armory
         private static readonly int ClawParam = Animator.StringToHash("Claw");
         private static readonly int BiteParam = Animator.StringToHash("Bite");
         private static readonly int DieParam = Animator.StringToHash("Die");
+        private static readonly int StompParam = Animator.StringToHash("Stomp");
+        private static readonly int FireballParam = Animator.StringToHash("Fireball");
+        private static readonly int LaserParam = Animator.StringToHash("Laser");
+        private static readonly int EnrageParam = Animator.StringToHash("Enrage");
+        private static readonly int EnragedParam = Animator.StringToHash("Enraged");
         private readonly Transform[] organs = new Transform[4];
         private readonly Transform[] anchors = new Transform[4];
         private readonly List<Renderer> plates = new List<Renderer>();
-        private readonly List<HiveThreat> threats = new List<HiveThreat>();
+        private readonly HiveHazards hazards = new HiveHazards();
         private HiveAvatarAssets assets;
         private HiveAvatarRig rig;
         private Animator animator;
+        private HiveAvatarEvents events;
         /// <summary>True once the authored prefab's animator controller drives the body instead of raw clips.</summary>
         private bool controllerDriven;
         private Transform model;
-        private Transform hazards;
+        private Transform mouth;
+        private Transform hazardRoot;
         private TextMeshPro title, status;
         private Material healthBar;
         private PlayableGraph animationGraph;
@@ -48,6 +75,12 @@ namespace Armory
         private bool loopClip;
         private float clipTime;
         private bool dying;
+        private int attackCursor;
+        /// <summary>Set when the wind-up's organ is shot off, so the attack drops instead of resolving anyway.</summary>
+        private bool attackCancelled;
+        private readonly bool[] beatFired = new bool[5];
+        private Vector3 laserCenter = Vector3.forward;
+        private float laserReach = 18f;
         private MothershipSpawnTrace spawnTrace;
         private Sentry.ISpan arrivalSpan;
         private float arrivalStarted;
@@ -62,8 +95,8 @@ namespace Armory
             assets = presentation;
             spawnTrace?.RecordPresentation(assets != null && assets.Model != null,
                 assets != null && assets.Idle != null && assets.Walk != null);
-            hazards = new GameObject("Hive Hazards").transform;
-            hazards.SetParent(transform.parent, false);
+            hazardRoot = new GameObject("Hive Hazards").transform;
+            hazardRoot.SetParent(transform.parent, false);
             if (assets != null && (assets.Visual != null || assets.Model != null)) BuildModel();
             else Mats.Shape(PrimitiveType.Capsule, transform, Vector3.up * 6f, new Vector3(8f, 6f, 8f), Mats.Lit(HiveColor), name: "Avatar Fallback");
             BuildTargets();
@@ -87,6 +120,8 @@ namespace Armory
             {
                 animator.applyRootMotion = false;
                 animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                // The receiver has to go on the animator's own GameObject; Unity delivers clip events nowhere else.
+                events = HiveAvatarEvents.Bind(animator, this);
                 // Settle into the controller's default state now: the bake below measures whatever pose is applied.
                 animator.Rebind();
                 animator.Update(0f);
@@ -112,6 +147,10 @@ namespace Armory
             if (rig.Authored) rig.HideAnchorCores();
             for (int i = 0; i < anchors.Length; i++) anchors[i] = rig.Anchors[i];
             if (!rig.IsComplete) Debug.LogWarning("Hive Avatar: model is missing organ anchors; those organs stay at their fallback offsets.");
+            foreach (var candidate in model.GetComponentsInChildren<Transform>(true))
+                if (candidate.name == "Mouth_Socket") { mouth = candidate; break; }
+            if (mouth == null && controllerDriven)
+                Debug.LogWarning("Hive Avatar: no Mouth_Socket on the model; the fireball and laser leave the torso instead.");
         }
 
         private void BuildTargets()
@@ -196,7 +235,7 @@ namespace Armory
             }
         }
 
-        private enum HiveMotion { Idle, Walk, Claw, Bite, Die }
+        private enum HiveMotion { Idle, Walk, Claw, Bite, Die, Stomp, Fireball, Laser, Enrage }
 
         /// <summary>
         /// The one entry point for body motion. The authored prefab ships an animator controller; the bare model
@@ -215,6 +254,11 @@ namespace Armory
                     case HiveMotion.Idle: animator.SetBool(MovingParam, false); break;
                     case HiveMotion.Claw: animator.SetTrigger(ClawParam); break;
                     case HiveMotion.Bite: animator.SetTrigger(BiteParam); break;
+                    case HiveMotion.Stomp: animator.SetTrigger(StompParam); break;
+                    case HiveMotion.Fireball: animator.SetTrigger(FireballParam); break;
+                    case HiveMotion.Laser: animator.SetTrigger(LaserParam); break;
+                    // The bool picks the faster idle and walk for good; the trigger is the one-shot roar.
+                    case HiveMotion.Enrage: animator.SetBool(EnragedParam, true); animator.SetTrigger(EnrageParam); break;
                     case HiveMotion.Die: animator.SetBool(MovingParam, false); animator.SetTrigger(DieParam); break;
                 }
                 return;
@@ -226,8 +270,14 @@ namespace Armory
                 {
                     case HiveMotion.Walk: clip = assets.Walk; loop = true; break;
                     case HiveMotion.Idle: clip = assets.Idle; loop = true; break;
-                    case HiveMotion.Claw: clip = assets.Attack; break;
-                    case HiveMotion.Bite: clip = assets.Spit; break;
+                    // The bare FBX has no authored attack clips, so the old imported ones stand in for them and
+                    // the gameplay below still runs on the handoff's timings.
+                    case HiveMotion.Claw:
+                    case HiveMotion.Stomp:
+                    case HiveMotion.Enrage: clip = assets.Attack; break;
+                    case HiveMotion.Bite:
+                    case HiveMotion.Fireball:
+                    case HiveMotion.Laser: clip = assets.Spit; break;
                     case HiveMotion.Die: clip = assets.Death; break;
                 }
             Play(clip, loop);
@@ -279,58 +329,310 @@ namespace Armory
             spawnTrace = null;
             Motion(HiveMotion.Idle);
             ArmoryGame.Instance?.ShowBanner("HIVE AVATAR / BREAK THE GLOWING ORGANS", HiveColor);
-            int attackIndex = 0;
-            while (Body.Alive)
+            while (Body.Alive && !dying)
             {
                 Phase = Enraged ? "ENRAGED" : "HUNTING";
                 yield return new WaitForSeconds(Enraged ? 2.8f : 4.5f);
-                var attack = (HiveAttack)(attackIndex++ % 4);
-                if (!Rules.CanAttack(attack)) continue;
-                CurrentAttack = attack.ToString();
-                if (attack == HiveAttack.SweepLeft || attack == HiveAttack.SweepRight) yield return Sweep(attack);
-                else yield return LaunchThreats(attack);
+                // Every gate below is re-checked after the wait: the player may have killed the boss during it,
+                // and an attack trigger fired after death leaves the death state through the Any State edge.
+                if (dying || !Body.Alive) yield break;
+                if (Rules.ShouldEnrage(Body.Health, Body.MaxHealth)) yield return Enrage();
+                if (dying || !Body.Alive) yield break;
+                if (!HiveMoves.TryNext(Rules, ref attackCursor, out var move)) continue;
+                CurrentAttack = move.ToString();
+                switch (move)
+                {
+                    case HiveMove.Stomp: yield return Stomp(); break;
+                    case HiveMove.Fireball: yield return Fireball(); break;
+                    case HiveMove.Laser: yield return Laser(); break;
+                    case HiveMove.ClawSweep: yield return Sweep(); break;
+                    default: yield return LaunchThreats(move); break;
+                }
                 CurrentAttack = "";
                 Motion(HiveMotion.Idle);
             }
         }
 
-        private IEnumerator Sweep(HiveAttack attack)
+        private IEnumerator Enrage()
+        {
+            Phase = "ENRAGED";
+            ArmoryGame.Instance?.ShowBanner("HIVE AVATAR ENRAGED / IT HITS FASTER NOW", HiveColor);
+            Motion(HiveMotion.Enrage);
+            Effects.Burst(AimPoint, HiveColor, 6f);
+            ProceduralSfx.PlayAt(ProceduralSfx.Hit, AimPoint, 1f);
+            yield return new WaitForSeconds(EnrageLength);
+        }
+
+        /// <summary>
+        /// Ground slam. The ring is drawn a beat before the wind-up starts and never moves afterwards, so the
+        /// warning the player reacted to is the warning that resolves - chasing them with it would be undodgeable.
+        /// </summary>
+        private IEnumerator Stomp()
         {
             Vector3 point = PlayerGround();
-            const float radius = 3.2f, warning = 3f;
-            Phase = "SWEEP / TELEPORT OUT / CORE AT RISK";
-            ArmoryGame.Instance?.ShowBanner("CLAW SWEEP / TELEPORT OUT OF THE RING", HiveColor);
-            var marker = HiveTelegraph.Create(hazards, point, radius, HiveColor);
-            for (float t = 0; t < warning; t += Time.deltaTime)
+            Phase = "STOMP / GET OUT OF THE RING";
+            ArmoryGame.Instance?.ShowBanner("GROUND STOMP / MOVE OR TELEPORT CLEAR", HiveColor);
+            var marker = hazards.Track(HiveTelegraph.Create(hazardRoot, point, HiveDamage.StompRadius, HiveColor));
+            yield return Wind(HiveMove.Stomp, marker, StompWarning, point, 0f, 0.4f);
+            if (dying || attackCancelled) { hazards.Release(marker); yield break; }
+            ArmBeats();
+            Motion(HiveMotion.Stomp);
+            yield return WaitFor(HiveBeat.StompImpact, StompImpactAt, marker, 0.4f, 1f);
+            if (!dying)
             {
-                marker.SetProgress(t / warning);
-                if (!Rules.CanAttack(attack)) { Destroy(marker.gameObject); yield break; }
+                ArtVfx.Play("BossShockwave", point, Quaternion.identity, HiveDamage.StompRadius / ShockwaveArtRadius);
+                Effects.Burst(point + Vector3.up * 0.5f, HiveColor, HiveDamage.StompRadius);
+                ProceduralSfx.PlayAt(ProceduralSfx.Hit, point + Vector3.up, 1f);
+                if (Vector3.Distance(PlayerGround(), point) < HiveDamage.StompRadius) HitPlayer(HiveDamage.Stomp);
+            }
+            hazards.Release(marker);
+            yield return WaitFor(HiveBeat.Recovered, StompLength - StompImpactAt);
+        }
+
+        /// <summary>Lobbed from the mouth socket onto the telegraphed ring, with a short flight to run out of.</summary>
+        private IEnumerator Fireball()
+        {
+            Vector3 point = PlayerGround();
+            Phase = "FIREBALL / KEEP MOVING";
+            ArmoryGame.Instance?.ShowBanner("FIREBALL INCOMING / LEAVE THE MARKED GROUND", HiveColor);
+            var marker = hazards.Track(HiveTelegraph.Create(hazardRoot, point, HiveDamage.FireballRadius, HiveColor));
+            yield return Wind(HiveMove.Fireball, marker, FireballWarning, point, 0f, 0.3f);
+            if (dying || attackCancelled) { hazards.Release(marker); yield break; }
+            ArmBeats();
+            Motion(HiveMotion.Fireball);
+            yield return WaitFor(HiveBeat.FireballRelease, FireballReleaseAt, marker, 0.3f, 0.7f);
+            if (dying) { hazards.Release(marker); yield break; }
+            Vector3 from = MouthPoint;
+            Vector3 impact = point + Vector3.up * 0.6f;
+            var ball = hazards.Track("BossFireball", ArtVfx.Play("BossFireball", from, Quaternion.identity, 1.4f));
+            Own(ball);
+            for (float t = 0f; t < FireballFlight; t += Time.deltaTime)
+            {
+                if (dying) break;
+                float k = t / FireballFlight;
+                // An arc rather than a straight line: a flat shot from a mouth twelve metres up reads as a miss.
+                if (ball != null) ball.transform.position = Vector3.Lerp(from, impact, k) + Vector3.up * (Mathf.Sin(k * Mathf.PI) * 2.5f);
+                if (marker != null) marker.SetProgress(0.7f + k * 0.3f);
                 yield return null;
             }
+            hazards.Release(ball);
+            if (!dying)
+            {
+                ArtVfx.Play("BossShockwave", point, Quaternion.identity, HiveDamage.FireballRadius / ShockwaveArtRadius);
+                Effects.Burst(impact, HiveColor, HiveDamage.FireballRadius);
+                ProceduralSfx.PlayAt(ProceduralSfx.Hit, impact, 0.9f);
+                if (Vector3.Distance(PlayerGround(), point) < HiveDamage.FireballRadius) HitPlayer(HiveDamage.Fireball);
+            }
+            hazards.Release(marker);
+            yield return WaitFor(HiveBeat.Recovered, FireballLength - FireballReleaseAt);
+        }
+
+        /// <summary>
+        /// Mouth beam. The charge sits on the socket for the whole wind-up so the player can see which end of the
+        /// arena is about to be cut, then the beam itself is the telegraph while it sweeps.
+        /// </summary>
+        private IEnumerator Laser()
+        {
+            Vector3 point = PlayerGround();
+            Phase = "LASER SWEEP / BREAK THE LINE";
+            ArmoryGame.Instance?.ShowBanner("MOUTH LASER CHARGING / GET OUT OF THE SWEEP", HiveColor);
+            var marker = hazards.Track(HiveTelegraph.Create(hazardRoot, point, HiveDamage.LaserWarnRadius, HiveColor));
+            yield return Wind(HiveMove.Laser, marker, LaserWarning, point, 0f, 0.3f);
+            if (dying || attackCancelled) { hazards.Release(marker); yield break; }
+            ArmBeats();
+            Motion(HiveMotion.Laser);
+            var charge = hazards.Track("BossLaserCharge", ArtVfx.Play("BossLaserCharge", MouthPoint, Quaternion.identity, 1.5f));
+            Own(charge);
+            yield return WaitFor(HiveBeat.LaserStart, LaserStartAt, marker, 0.3f, 1f, charge);
+            hazards.Release(charge);
+            hazards.Release(marker);
+            if (dying) yield break;
+
+            // The sweep is centred on where the player stood when the beam lit, and reaches as far out as they
+            // were standing, so the arc actually crosses them instead of passing over their head.
+            Vector3 flat = PlayerGround() - transform.position;
+            flat.y = 0f;
+            laserCenter = flat.sqrMagnitude > 0.01f ? flat.normalized : transform.forward;
+            laserReach = Mathf.Clamp(flat.magnitude, 8f, 40f);
+            var beam = hazards.Track("BossLaserBeam", ArtVfx.Play("BossLaserBeam", MouthPoint, Quaternion.identity));
+            Own(beam);
+            ProceduralSfx.PlayAt(ProceduralSfx.Hit, MouthPoint, 0.8f);
+            float deadline = Time.time + (LaserEndAt - LaserStartAt) + EventGrace;
+            while (!beatFired[(int)HiveBeat.LaserEnd] && Time.time < deadline && !dying)
+            {
+                Vector3 origin = MouthPoint;
+                Vector3 tip = BeamTip(origin);
+                DrawBeam(beam, origin, tip);
+                if (HiveDamage.DistanceToBeam(PlayerGround() + Vector3.up, origin, tip) < HiveDamage.LaserRadius)
+                    HitPlayer(HiveDamage.LaserTick);
+                yield return null;
+            }
+            hazards.Release(beam);
+            yield return WaitFor(HiveBeat.Recovered, LaserLength - LaserEndAt);
+        }
+
+        /// <summary>The original claw sweep, kept as the right claw's beat so all four organs still silence one.</summary>
+        private IEnumerator Sweep()
+        {
+            Vector3 point = PlayerGround();
+            Phase = "SWEEP / TELEPORT OUT OF THE RING";
+            ArmoryGame.Instance?.ShowBanner("CLAW SWEEP / TELEPORT OUT OF THE RING", HiveColor);
+            var marker = hazards.Track(HiveTelegraph.Create(hazardRoot, point, HiveDamage.ClawSweepRadius, HiveColor));
+            yield return Wind(HiveMove.ClawSweep, marker, SweepWarning, point, 0f, 1f);
+            if (dying || attackCancelled) { hazards.Release(marker); yield break; }
             Motion(HiveMotion.Claw);
             Effects.Lightning(AimPoint, point + Vector3.up, HiveColor);
-            Effects.Burst(point + Vector3.up * 0.5f, HiveColor, radius * 2f);
-            Destroy(marker.gameObject);
-            // The marine has no HP: failing the dodge transfers the impact to station integrity.
-            if (Vector3.Distance(PlayerGround(), point) < radius) StationCore.Instance?.TakeDamage(12f);
+            Effects.Burst(point + Vector3.up * 0.5f, HiveColor, HiveDamage.ClawSweepRadius * 2f);
+            hazards.Release(marker);
+            if (Vector3.Distance(PlayerGround(), point) < HiveDamage.ClawSweepRadius) HitPlayer(HiveDamage.ClawSweep);
             yield return new WaitForSeconds(1f);
         }
 
-        private IEnumerator LaunchThreats(HiveAttack attack)
+        private IEnumerator LaunchThreats(HiveMove move)
         {
-            bool spores = attack == HiveAttack.Spores;
+            bool spores = move == HiveMove.Spores;
             Phase = spores ? "SPORES / SHOOT BEFORE THEY HATCH" : "WRECK / SHOOT TO PROTECT CORE";
             ArmoryGame.Instance?.ShowBanner(spores ? "SPORE PODS / SHOOT THEM DOWN" : "INCOMING WRECK / SHOOT IT DOWN", HiveColor);
             Motion(HiveMotion.Bite);
             yield return new WaitForSeconds(0.8f);
-            if (!Rules.CanAttack(attack)) yield break;
+            if (dying || !Rules.CanAttack(move)) yield break;
             int count = spores ? 3 : 1;
             for (int i = 0; i < count; i++)
             {
                 Vector3 destination = spores ? Body.Target + Quaternion.Euler(0f, i * 120f, 0f) * Vector3.forward * 14f : Body.Target + Vector3.up * 2f;
-                threats.Add(HiveThreat.Launch(hazards, AimPoint, destination, spores));
+                hazards.Track(HiveThreat.Launch(hazardRoot, AimPoint, destination, spores));
             }
         }
+
+        /// <summary>
+        /// Turns to face the target while the ring fills. The boss used to attack in whichever direction it
+        /// happened to arrive facing, which made every wind-up unreadable from inside the ring.
+        /// </summary>
+        private IEnumerator Wind(HiveMove move, HiveTelegraph marker, float seconds, Vector3 point, float from, float to)
+        {
+            attackCancelled = false;
+            Quaternion start = transform.rotation;
+            Vector3 flat = point - transform.position;
+            flat.y = 0f;
+            Quaternion facing = flat.sqrMagnitude > 0.01f ? Quaternion.LookRotation(flat) : start;
+            for (float t = 0f; t < seconds; t += Time.deltaTime)
+            {
+                if (dying) yield break;
+                // Shooting the organ during the wind-up has always cancelled the attack; that feedback loop is
+                // the reason the player shoots organs rather than the body.
+                if (!Rules.CanAttack(move)) { attackCancelled = true; yield break; }
+                float k = t / seconds;
+                transform.rotation = Quaternion.Slerp(start, facing, Mathf.SmoothStep(0f, 1f, k));
+                if (marker != null) marker.SetProgress(Mathf.Lerp(from, to, k));
+                yield return null;
+            }
+            transform.rotation = facing;
+        }
+
+        /// <summary>Animation-event beats inside one attack clip.</summary>
+        private enum HiveBeat { StompImpact, FireballRelease, LaserStart, LaserEnd, Recovered }
+
+        private void ArmBeats()
+        {
+            for (int i = 0; i < beatFired.Length; i++) beatFired[i] = false;
+        }
+
+        /// <summary>
+        /// Waits for an authored animation event, with the clip's own timing as a deadline. The events ship with
+        /// DontRequireReceiver, so a broken hook is silent by design: without this the encounter would hang on an
+        /// event that never arrives, and nobody would know which of the two happened.
+        /// </summary>
+        private IEnumerator WaitFor(HiveBeat beat, float authoredAt, HiveTelegraph marker = null,
+            float from = 0f, float to = 1f, GameObject follow = null)
+        {
+            float deadline = Time.time + authoredAt + EventGrace;
+            float span = Mathf.Max(0.01f, authoredAt);
+            float started = Time.time;
+            while (!beatFired[(int)beat] && Time.time < deadline)
+            {
+                if (dying) yield break;
+                if (marker != null) marker.SetProgress(Mathf.Lerp(from, to, (Time.time - started) / span));
+                if (follow != null) follow.transform.position = MouthPoint;
+                yield return null;
+            }
+            if (marker != null) marker.SetProgress(to);
+            if (beatFired[(int)beat] || !controllerDriven) yield break;
+            Debug.LogWarning($"Hive Avatar: animation event for {beat} never arrived within {authoredAt + EventGrace:0.00}s. " +
+                "The attack fell back to its authored timing; check HiveAvatarEvents sits on the Animator GameObject and the clip still carries the event.");
+        }
+
+        private Vector3 MouthPoint => mouth != null ? mouth.position : AimPoint;
+
+        /// <summary>
+        /// Where the beam burns the deck this frame. The authored sweep turns the head through 120 degrees but
+        /// keeps it level, and a level beam leaving a mouth twelve metres up never reaches the floor, so only the
+        /// sweep's yaw is taken from the socket and the pitch is solved here against the deck.
+        /// </summary>
+        private Vector3 BeamTip(Vector3 origin)
+        {
+            Vector3 body = transform.forward;
+            body.y = 0f;
+            Vector3 socket = mouth != null ? mouth.forward : body;
+            socket.y = 0f;
+            float yaw = body.sqrMagnitude > 0.0001f && socket.sqrMagnitude > 0.0001f
+                ? Vector3.SignedAngle(body, socket, Vector3.up) : 0f;
+            Vector3 aim = Quaternion.Euler(0f, yaw, 0f) * laserCenter;
+            Vector3 tip = origin + aim * laserReach;
+            tip.y = Body != null ? Body.Target.y : 0f;
+            return tip;
+        }
+
+        private static void DrawBeam(GameObject beam, Vector3 origin, Vector3 tip)
+        {
+            if (beam == null) return;
+            Vector3 along = tip - origin;
+            if (along.sqrMagnitude < 0.0001f) return;
+            beam.transform.SetPositionAndRotation(origin, Quaternion.LookRotation(along.normalized));
+            var line = beam.GetComponent<LineRenderer>();
+            if (line == null) return;
+            line.useWorldSpace = false;
+            line.positionCount = 2;
+            line.SetPosition(0, Vector3.zero);
+            line.SetPosition(1, Vector3.forward * along.magnitude);
+            // The drawn beam has to be at least as wide as the volume that hurts. The authored ribbon is 16 cm,
+            // sized for a close-up, and being burned by something you cannot see reads as a bug.
+            line.widthMultiplier = HiveDamage.LaserRadius * 1.8f;
+        }
+
+        /// <summary>
+        /// Stops the pool reclaiming an effect the encounter is still steering. The beam is a LineRenderer with
+        /// no particles, so ArtVfx would time it out on the two-second fallback halfway through the sweep.
+        /// </summary>
+        private static void Own(GameObject effect)
+        {
+            if (effect == null) return;
+            var timer = effect.GetComponent<VfxLifetime>();
+            if (timer != null) timer.enabled = false;
+        }
+
+        /// <summary>
+        /// Boss attacks hit the marine, not the station. The old sweep drained core integrity with a comment that
+        /// the marine had no HP; PlayerVitals changed that, and a boss whose attacks cannot threaten the player
+        /// standing in front of it is not a boss.
+        /// </summary>
+        private static float HitPlayer(float amount)
+        {
+            var game = ArmoryGame.Instance;
+            if (game == null) return 0f;
+            float taken = game.Vitals.Damage(amount, Time.time);
+            if (taken <= 0f) return 0f;
+            Vector3 feet = game.Rig != null ? game.Rig.FeetPosition : Vector3.zero;
+            Effects.Flash(feet + Vector3.up * 1.4f, HiveColor, 1.8f);
+            ProceduralSfx.PlayAt(ProceduralSfx.Hit, feet + Vector3.up, 0.9f);
+            if (game.Vitals.Down) ShipAI.Instance?.SayShip("Shields down. Fall back to a pad.", "SHIELDS DOWN");
+            return taken;
+        }
+
+        void IHiveAttackEvents.StompImpact() => beatFired[(int)HiveBeat.StompImpact] = true;
+        void IHiveAttackEvents.FireballRelease() => beatFired[(int)HiveBeat.FireballRelease] = true;
+        void IHiveAttackEvents.LaserStart() => beatFired[(int)HiveBeat.LaserStart] = true;
+        void IHiveAttackEvents.LaserEnd() => beatFired[(int)HiveBeat.LaserEnd] = true;
+        void IHiveAttackEvents.AttackRecovered() => beatFired[(int)HiveBeat.Recovered] = true;
 
         private Vector3 PlayerGround()
         {
@@ -397,18 +699,33 @@ namespace Armory
             Ready = false;
             Phase = "DEFEATED";
             StopAllCoroutines();
+            // A queued trigger survives until a transition consumes it, so an unconsumed Stomp would fire off Any
+            // State the instant the death clip started and stand the boss back up mid-collapse.
+            ClearAttackTriggers();
             ClearThreats();
             foreach (var collider in GetComponentsInChildren<Collider>()) collider.enabled = false;
             foreach (var organ in organs) if (organ != null) organ.gameObject.SetActive(false);
             if (killed) Motion(HiveMotion.Die);
+            // The death clip carries no events, and the encounter is gone: anything still in flight is expected.
+            if (events != null) events.Detach();
             if (Active == this) Active = null;
+        }
+
+        private void ClearAttackTriggers()
+        {
+            if (!controllerDriven || animator == null) return;
+            animator.ResetTrigger(StompParam);
+            animator.ResetTrigger(FireballParam);
+            animator.ResetTrigger(LaserParam);
+            animator.ResetTrigger(EnrageParam);
+            animator.ResetTrigger(ClawParam);
+            animator.ResetTrigger(BiteParam);
         }
 
         private void ClearThreats()
         {
-            foreach (var threat in threats) if (threat != null) threat.Cancel();
-            threats.Clear();
-            if (hazards != null) Destroy(hazards.gameObject);
+            hazards.Clear();
+            if (hazardRoot != null) Destroy(hazardRoot.gameObject);
         }
 
         private void OnDestroy()
