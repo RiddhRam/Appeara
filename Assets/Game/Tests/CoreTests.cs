@@ -245,6 +245,31 @@ namespace Armory.Tests
     public class MockInterpreterTests
     {
         [Test]
+        public void InitialWeaponPoolContainsTheThreeStarterConcepts()
+        {
+            CollectionAssert.AreEqual(new[]
+            {
+                "A donut that I throw at enemies",
+                "A goose that throws eggs at enemies",
+                "A machine gun",
+            }, ShipAI.InitialWeaponPrompts);
+        }
+
+        [Test]
+        public void NoveltyStarterPromptsWorkOffline()
+        {
+            var donut = WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(ShipAI.InitialWeaponPrompts[0]));
+            var goose = WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(ShipAI.InitialWeaponPrompts[1]));
+            var machineGun = WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(ShipAI.InitialWeaponPrompts[2]));
+
+            Assert.AreEqual(FireMode.Thrown, donut.FireMode);
+            Assert.AreEqual(ProjectileShape.Disc, donut.Shape);
+            Assert.AreEqual(FireMode.Thrown, goose.FireMode);
+            Assert.AreEqual(ProjectileShape.Orb, goose.Shape);
+            Assert.Greater(machineGun.FireRate, 6f);
+        }
+
+        [Test]
         public void StickyMineShotgun()
         {
             var weapon = WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson("Give me a shotgun that fires sticky mines which explode when aliens get close"));

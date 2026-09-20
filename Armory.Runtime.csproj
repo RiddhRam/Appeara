@@ -53,12 +53,14 @@
     <Compile Include="Assets/Game/Core/AdaptationRules.cs" />
     <Compile Include="Assets/Game/Enemies/WaveDirector.cs" />
     <Compile Include="Assets/Game/Enemies/StationCore.cs" />
+    <Compile Include="Assets/Game/Enemies/EnemyVisuals.cs" />
     <Compile Include="Assets/Game/AI/MicCapture.cs" />
     <Compile Include="Assets/Game/Core/WeaponSpecParser.cs" />
     <Compile Include="Assets/Game/AI/AiConfig.cs" />
     <Compile Include="Assets/Game/Enemies/HiveTelegraph.cs" />
     <Compile Include="Assets/Game/AI/ElevenLabsClient.cs" />
     <Compile Include="Assets/Game/UI/MissionDeck.cs" />
+    <Compile Include="Assets/Game/Core/StatusEffects.cs" />
     <Compile Include="Assets/Game/AI/ArmoryTelemetry.cs" />
     <Compile Include="Assets/Game/Enemies/HiveAvatar.cs" />
     <Compile Include="Assets/Game/AI/OpenAiClient.cs" />
@@ -69,13 +71,18 @@
     <Compile Include="Assets/Game/Core/MockWeaponInterpreter.cs" />
     <Compile Include="Assets/Game/Core/CombatLog.cs" />
     <Compile Include="Assets/Game/Enemies/HiveThreat.cs" />
+    <Compile Include="Assets/Game/Core/WeaponMesh.cs" />
     <Compile Include="Assets/Game/Core/WeaponSpec.cs" />
+    <Compile Include="Assets/Game/Core/FrameRateLimiter.cs" />
+    <Compile Include="Assets/Game/Enemies/HiveAvatarRig.cs" />
+    <Compile Include="Assets/Game/Core/ModelFit.cs" />
     <Compile Include="Assets/Game/Enemies/HiveAvatarAssets.cs" />
     <Compile Include="Assets/Game/Core/DamageTable.cs" />
     <Compile Include="Assets/Game/ArmoryGame.cs" />
     <Compile Include="Assets/Game/Weapons/Weapon.cs" />
     <Compile Include="Assets/Game/UI/HudButton.cs" />
     <Compile Include="Assets/Game/Weapons/Effects.cs" />
+    <Compile Include="Assets/Game/UI/SketchBoard.cs" />
     <Compile Include="Assets/Game/Weapons/ProceduralSfx.cs" />
     <Compile Include="Assets/Game/VR/ArmoryRig.cs" />
     <Compile Include="Assets/Game/UI/BlueprintHologram.cs" />
@@ -88,10 +95,13 @@
     <Compile Include="Assets/Game/AI/ShipAI.cs" />
     <Compile Include="Assets/Game/VR/Locomotion.cs" />
     <Compile Include="Assets/Game/UI/Hud.cs" />
+    <Compile Include="Assets/Game/UI/UiPointer.cs" />
+    <Compile Include="Assets/Game/UI/ArmoryPrompt.cs" />
     <Compile Include="Assets/Game/UI/UiKit.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets/Game/Armory.Runtime.asmdef" />
+    <None Include="Assets/Game/Weapons/WeaponCutout.shader" />
     <None Include="Assets/Game/UI/HologramBlueprint.shader" />
     <None Include="Assets/Game/UI/Resources/Fonts/OFL.txt" />
     <None Include="Assets/Game/UI/HudBar.shader" />

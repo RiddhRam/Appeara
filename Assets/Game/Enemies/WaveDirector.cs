@@ -42,7 +42,7 @@ namespace Armory
 
         public readonly List<Wave> Waves = new List<Wave>
         {
-            new Wave { Name = "First Contact", Hint = "Grunts. Anything works. Try your default rifle.", Groups = new[] { new Group(EnemyKind.Grunt, 12, 0.9f) } },
+            new Wave { Name = "First Contact", Hint = "Grunts. Anything works. Try your starter weapon.", Groups = new[] { new Group(EnemyKind.Grunt, 12, 0.9f) } },
             new Wave { Name = "The Swarm", Hint = "Dozens of tiny swarmers. Area damage shreds them.", Groups = new[] { new Group(EnemyKind.Swarm, 45, 0.18f), new Group(EnemyKind.Grunt, 4, 2f) } },
             new Wave { Name = "Heavy Plating", Hint = "Armored brutes shrug off bullets. Pierce or blow them up.", Groups = new[] { new Group(EnemyKind.Armored, 6, 2.5f), new Group(EnemyKind.Grunt, 8, 1.2f) } },
             new Wave { Name = "Blitz", Hint = "Fast runners and shielded escorts. Homing, cryo, and electricity.", Groups = new[] { new Group(EnemyKind.Fast, 14, 0.8f), new Group(EnemyKind.Shielded, 6, 2f) } },
@@ -116,6 +116,13 @@ namespace Armory
                 State = "ARMORY · design a weapon · say \"ready\" to begin";
                 var core = StationCore.Instance;
                 if (core != null && ArmoryRepairPerSecond > 0f) core.Repair(ArmoryRepairPerSecond * Time.deltaTime);
+                yield return null;
+            }
+
+            // The first randomized fabrication may still be waiting on a model response.
+            while (ShipAI.Instance == null || ShipAI.Instance.Current == null)
+            {
+                State = "ARMORY · fabricating starter weapon";
                 yield return null;
             }
             InArmory = false;

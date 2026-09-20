@@ -52,6 +52,7 @@
     <Compile Include="Assets/Game/Editor/HiveAvatarSetup.cs" />
     <Compile Include="Assets/Game/Editor/ArmorySceneSetup.cs" />
     <Compile Include="Assets/Game/Editor/HiveAvatarVerification.cs" />
+    <Compile Include="Assets/Game/Editor/EnemyModelSetup.cs" />
     <Compile Include="Assets/Game/Editor/StationMaterialFixer.cs" />
     <Compile Include="Assets/Game/Editor/ArmoryCommandBridge.cs" />
   </ItemGroup>

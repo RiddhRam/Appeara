@@ -46,6 +46,17 @@ namespace Armory.Core
             if (Has(text, "slow")) onHit.Add("slow");
 
             spec.visual.primaryColor = ColorFor(spec.payload);
+            // Keep the randomized starter weapons recognizable even without the model services.
+            if (Has(text, "donut", "doughnut"))
+            {
+                spec.visual.projectileShape = "disc";
+                spec.visual.primaryColor = "#FF8FCB";
+            }
+            else if (Has(text, "goose", "egg"))
+            {
+                spec.visual.projectileShape = "orb";
+                spec.visual.primaryColor = "#FFF2B3";
+            }
             spec.modifiers = modifiers.ToArray();
             spec.onHit = onHit.ToArray();
             spec.shipAILine = "Offline fabrication complete: " + spec.name + ".";

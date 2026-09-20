@@ -44,6 +44,14 @@ namespace Armory
             "Homing lightning missiles that chain between aliens",
         };
 
+        /// <summary>One of these is fabricated automatically when a new run begins.</summary>
+        public static readonly string[] InitialWeaponPrompts =
+        {
+            "A donut that I throw at enemies",
+            "A goose that throws eggs at enemies",
+            "A machine gun",
+        };
+
         private const string DefaultWeapon = "standard issue machine gun";
         private AudioSource shipVoice;
         private AudioSource motherVoice;
@@ -95,10 +103,15 @@ namespace Armory
             wristBlueprint = BlueprintHologram.Create("Wrist Blueprint", Rig.LeftHand, new Vector3(0f, 0.36f, 0.02f), 0.26f, worldPosition: false, yawOnly: false);
             var center = ArmoryGame.Instance != null ? ArmoryGame.Instance.transform.position : Vector3.zero;
             coreBlueprint = BlueprintHologram.Create("Core Blueprint", transform, center + Vector3.up * 7f, 6f, worldPosition: true, yawOnly: true);
-            Equip(WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(DefaultWeapon)), announce: false);
-            SayShip(OpenAI != null ? "Fabricator online. Hold your left grip and tell me what to build." : "Fabricator in offline mode. Keyword fabrication only.", "ARIA ONLINE");
             StartCoroutine(PlayVoices());
+            SayShip(OpenAI != null
+                ? "Fabricator online. Randomizing your starter weapon."
+                : "Fabricator offline. Randomizing your starter weapon.", "ARIA ONLINE");
+            _ = Fabricate(PickInitialWeaponPrompt(), playerRequested: false);
         }
+
+        public static string PickInitialWeaponPrompt() =>
+            InitialWeaponPrompts[UnityEngine.Random.Range(0, InitialWeaponPrompts.Length)];
 
         private void StartMic()
         {
@@ -220,7 +233,7 @@ namespace Armory
             return false;
         }
 
-        public async Awaitable Fabricate(string request, FabricationTrace trace = null)
+        public async Awaitable Fabricate(string request, FabricationTrace trace = null, bool playerRequested = true)
         {
             if (Busy) return;
             var director = WaveDirector.Instance;
@@ -232,9 +245,9 @@ namespace Armory
                 return;
             }
             Busy = true;
-            trace ??= ArmoryTelemetry.StartFabrication("text", CurrentWave(), Settings.Offline || OpenAI == null, Settings.UsesGateway);
+            trace ??= ArmoryTelemetry.StartFabrication(playerRequested ? "text" : "initial_loadout", CurrentWave(), Settings.Offline || OpenAI == null, Settings.UsesGateway);
             LastTranscript = request;
-            AddSubtitle("YOU", request);
+            if (playerRequested) AddSubtitle("YOU", request);
             Status = "FABRICATING...";
             ShowHologram(true);
             try
@@ -257,7 +270,13 @@ namespace Armory
             {
                 Debug.LogException(error);
                 trace.MarkFallback("fabrication_exception");
-                Status = "Fabrication error: " + error.Message;
+                if (!playerRequested && Current == null)
+                {
+                    var fallback = WeaponSpecParser.Parse(MockWeaponInterpreter.InterpretJson(request));
+                    Equip(fallback, announce: true, trace);
+                    Status = "Starter weapon built offline";
+                }
+                else Status = "Fabrication error: " + error.Message;
             }
             finally
             {
