@@ -22,6 +22,9 @@ namespace Armory
         private const float CommsW = 1.5f, CommsH = 0.5f, CommsHeader = 0.064f, CommsPad = 0.04f, CommsDistance = 2.0f, SpeakerColumn = 0.24f;
         private const int Rows = 3;
         private Transform follow;
+        /// <summary>Anchor other world panels here so they move as one block instead of fighting for the same space.</summary>
+        public Transform Follow => follow;
+        private Transform commsCard;
         private TextMeshPro commsStatus;
         private Material commsBar;
         private readonly TextMeshPro[] speakers = new TextMeshPro[Rows];
@@ -34,6 +37,13 @@ namespace Armory
         private const float BannerSeconds = 4f;
 
         private float nextRefresh;
+
+        private void Awake()
+        {
+            // Created in Awake so other panels can dock to it in their Start.
+            follow = new GameObject("HUD Follow").transform;
+            follow.SetParent(transform, false);
+        }
 
         private void Start()
         {
@@ -82,12 +92,9 @@ namespace Armory
 
         private void BuildComms()
         {
-            follow = new GameObject("Comms Follow").transform;
-            follow.SetParent(transform, false);
-            follow.position = Rig.Head.transform.position + Rig.Head.transform.forward * CommsDistance;
-
             var card = new GameObject("Comms Card").transform;
             card.SetParent(follow, false);
+            commsCard = card;
             var commsMaterial = UiKit.Panel(card, "Comms Panel", new Vector2(CommsW, CommsH), CommsHeader);
             // Darker glass at reading distance: the lit station floor otherwise washes it grey.
             commsMaterial.SetColor("_Fill", new Color(0.012f, 0.02f, 0.045f, 0.9f));
@@ -148,10 +155,9 @@ namespace Armory
         private void LateUpdate()
         {
             if (Rig == null || follow == null) return;
-            // The drydock sits closer than the comms card; showing both makes the text collide.
+            // The drydock replaces the comms block while it is open.
             bool deckOpen = MissionDeck.Open;
-            if (follow.gameObject.activeSelf == deckOpen) follow.gameObject.SetActive(!deckOpen);
-            if (deckOpen) return;
+            if (commsCard != null && commsCard.gameObject.activeSelf == deckOpen) commsCard.gameObject.SetActive(!deckOpen);
             var head = Rig.Head.transform;
             Vector3 forward = head.forward;
             forward.y = 0f;

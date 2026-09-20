@@ -146,15 +146,6 @@ namespace Armory
             if (Rig.TypePressed && !Busy) { textEntryOpen = true; typed = ""; }
             if (Rig.ReadyPressed) WaveDirector.Instance?.RequestWaveStart();
 
-            // The sketch board is only up while the player has time to design something.
-            var board = SketchBoard.Instance;
-            var waves = WaveDirector.Instance;
-            if (board != null && waves != null)
-            {
-                bool wantBoard = waves.InArmory && !MissionDeck.Open;
-                if (wantBoard != board.Visible) board.Show(wantBoard);
-            }
-
             if (hologram != null)
             {
                 hologram.transform.position = Rig.Aim.position + Rig.Aim.forward * 0.12f;
@@ -249,9 +240,7 @@ namespace Armory
             try
             {
                 string json = null;
-                string sketch = SketchBoard.Instance != null ? SketchBoard.Instance.EncodeBase64() : null;
-                if (sketch != null) AddSubtitle("YOU", "[sketch attached]");
-                if (OpenAI != null) json = await OpenAI.InterpretWeapon(request, BattleContext(), sketch, trace);
+                if (OpenAI != null) json = await OpenAI.InterpretWeapon(request, BattleContext(), null, trace);
                 var parsed = WeaponSpecParser.Parse(json);
                 if (parsed == null)
                 {

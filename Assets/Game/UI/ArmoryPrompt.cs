@@ -11,7 +11,6 @@ namespace Armory
     {
         public ArmoryRig Rig;
 
-        private const float Distance = 1.9f;
         private Transform panel;
         private TextMeshPro title;
         private bool shown;
@@ -19,7 +18,11 @@ namespace Armory
         private void Start()
         {
             panel = new GameObject("Prompt").transform;
-            panel.SetParent(transform, false);
+            // Docked under the comms card: two panels chasing the head separately made the HUD flicker.
+            var hud = FindAnyObjectByType<Hud>();
+            panel.SetParent(hud != null && hud.Follow != null ? hud.Follow : transform, false);
+            panel.localPosition = new Vector3(0f, -0.42f, 0f);
+            panel.localRotation = Quaternion.identity;
 
             var card = UiKit.Panel(panel, "Prompt Panel", new Vector2(0.72f, 0.3f), 0.05f, UiKit.Go);
             card.SetColor("_Fill", new Color(0.012f, 0.03f, 0.03f, 0.9f));
@@ -46,17 +49,7 @@ namespace Armory
                 panel.gameObject.SetActive(want);
             }
             if (!want) return;
-
             if (director.Current != null) title.text = "Next: " + director.Current.Name;
-
-            // Sits below eye line so it never covers the aliens' approach.
-            var head = Rig.Head.transform;
-            Vector3 forward = head.forward;
-            forward.y = 0f;
-            forward = forward.sqrMagnitude < 0.01f ? Vector3.forward : forward.normalized;
-            Vector3 target = head.position + forward * Distance - Vector3.up * 0.55f;
-            panel.position = Vector3.Lerp(panel.position, target, 4f * Time.deltaTime);
-            panel.rotation = Quaternion.LookRotation(panel.position - head.position);
         }
     }
 }
